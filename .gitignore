@@ -1,0 +1,9 @@
+# Development Files
+OceanTestbed.cpp
+Binaries/
+Intermediate/
+.vs/
+Ocean.sln
+Ocean.vcxproj
+Ocean.vcxproj.filters
+Ocean.vcxproj.user
