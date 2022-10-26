@@ -12,7 +12,7 @@
 /**
  * MIT License
  * 
- * Copyright(c) 2022 Avram Traian
+ * Copyright(c) 2022-2022 Avram Traian
  * 
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files(the "Software"), to deal
@@ -34,6 +34,11 @@
  */
 
 #pragma once
+
+/**
+ * Includes.
+ */
+#include <initializer_list>
 
 #ifndef OC_IMPLEMENTATION
 	#define OC_IMPLEMENTATION          0
@@ -77,6 +82,8 @@
 
 #define OC_FILE __FILE__
 #define OC_LINE __LINE__
+
+#define ArrayCount(ARRAY) (sizeof(ARRAY) / sizeof((ARRAY)[0]))
 
 #define OC_CONFIGURATION_ALREADY_DEFINED 0
 #ifdef OC_DEBUG
@@ -178,6 +185,88 @@ using int64 = FPlatformTypes::int64;
 /** An Unsigned Integer. 32 or 64-bit, depending on the system's architecture. */
 using SizeT = FPlatformTypes::SizeT;
 
+namespace OC
+{
+
+template<typename T>
+struct RemoveReference
+{
+	using Type = T;
+};
+
+template<typename T>
+struct RemoveReference<T&>
+{
+	using Type = T;
+};
+
+template<typename T>
+struct RemoveReference<T&&>
+{
+	using Type = T;
+};
+
+template<typename T>
+struct RemoveConst
+{
+	using Type = T;
+};
+
+template<typename T>
+struct RemoveConst<const T>
+{
+	using Type = T;
+};
+
+template<typename T>
+struct ArrayToPointerDecay
+{
+	using Type = T;
+};
+
+template<typename T, SizeT N>
+struct ArrayToPointerDecay<T[N]>
+{
+	using Type = T*;
+};
+
+} // namespace OC
+
+struct FTypes
+{
+public:
+	template<typename T>
+	using RemoveReferenceType = typename OC::RemoveReference<T>::Type;
+
+	template<typename T>
+	using RemoveConstType = typename OC::RemoveConst<T>::Type;
+
+	template<typename T>
+	using ArrayToPointerDecayType = typename OC::ArrayToPointerDecay<T>::Type;
+
+	template<typename T>
+	constexpr RemoveReferenceType<T>&& Move(T&& Object) noexcept
+	{
+		return static_cast<RemoveReferenceType<T>&&>(Object);
+	}
+
+	template<typename T>
+	constexpr T&& Forward(RemoveReferenceType<T>& Object) noexcept
+	{
+		return static_cast<T&&>(Object);
+	}
+};
+
+#pragma region String Calls
+
+/**
+* 
+*/
+SizeT FormatString(char* Buffer, SizeT BufferLength, const char* Format, ...);
+
+// String Calls
+#pragma endregion
+
 #if OC_DEBUG
 	#define OC_ENABLE_CHECKS   1
 	#define OC_ENABLE_VERIFIES 1
@@ -244,9 +333,9 @@ void OnCheckFailed(const char* Expression, const char* File, const char* Functio
 #define Checkf(EXPRESSION, ...)                                                       \
 	if (!(EXPRESSION))                                                                \
 	{                                                                                 \
-		char buffer[512] = {};                                                        \
-		sprintf_s(buffer, __VA_ARGS__);                                               \
-		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, buffer);      \
+		char Buffer[512] = {};                                                        \
+		FormatString(Buffer, ArrayCount(Buffer), __VA_ARGS__);                        \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, Buffer);      \
 		OC_DEBUGBREAK();                                                              \
 	}
 
@@ -290,9 +379,9 @@ void OnCheckFailed(const char* Expression, const char* File, const char* Functio
 #define Verifyf(EXPRESSION, ...)                                                      \
 	if (!(EXPRESSION))                                                                \
 	{                                                                                 \
-		char buffer[512] = {};                                                        \
-		sprintf_s(buffer, __VA_ARGS__);                                               \
-		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, buffer);      \
+		char Buffer[512] = {};                                                        \
+		FormatString(Buffer, ArrayCount(Buffer), __VA_ARGS__);                        \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, Buffer);      \
 		OC_DEBUGBREAK();                                                              \
 	}
 
@@ -332,6 +421,8 @@ public:
 
 } // namespace OC
 
+#define AllocateTagged(BLOCK_SIZE) AllocateTaggedImplementation(BLOCK_SIZE, OC_FILE, OC_FUNCTION, OC_LINE)
+
 /**
  *--------------------------------------
  * Structure for all memory operations.
@@ -353,7 +444,7 @@ public:
 	/**
 	 * 
 	 */
-	OC_NODISCARD static void* AllocateTagged(SizeT BlockSize);
+	OC_NODISCARD static void* AllocateTaggedImplementation(SizeT BlockSize, const char* File, const char* Function, uint32 Line);
 
 	/**
 	 * 
@@ -527,6 +618,991 @@ public:
 #define OC_TAG_FATAL(TAG, ...) // Ignore from build.
 #define OC_GAME_FATAL(...)     // Ignore from build.
 #endif // OC_ENABLE_FATAL_LOGS
+
+#pragma region Array Container
+
+template<typename T>
+class TArrayIterator
+{
+public:
+	TArrayIterator(T* InPointer);
+
+	bool operator==(const TArrayIterator<T>& Other) const;
+	bool operator!=(const TArrayIterator<T>& Other) const;
+
+	TArrayIterator<T>& operator++();
+	TArrayIterator<T> operator++(int);
+
+	TArrayIterator<T>& operator--();
+	TArrayIterator<T> operator--(int);
+
+	T& operator*();
+	const T& operator*() const;
+
+	T* operator->();
+	const T* operator->() const;
+
+private:
+	T* Pointer;
+};
+
+template<typename T>
+TArrayIterator<T>::TArrayIterator(T* InPointer)
+	: Pointer(InPointer)
+{}
+
+template<typename T>
+bool TArrayIterator<T>::operator==(const TArrayIterator<T>& Other) const
+{
+	return (Pointer == Other.Pointer);
+}
+
+template<typename T>
+bool TArrayIterator<T>::operator!=(const TArrayIterator<T>& Other) const
+{
+	return !(*this == Other);
+}
+
+template<typename T>
+TArrayIterator<T>& TArrayIterator<T>::operator++()
+{
+	Pointer++;
+	return *this;
+}
+
+template<typename T>
+TArrayIterator<T> TArrayIterator<T>::operator++(int)
+{
+	TArrayIterator<T> Temp = *this;
+	++(*this);
+	return Temp;
+}
+
+template<typename T>
+TArrayIterator<T>& TArrayIterator<T>::operator--()
+{
+	Pointer--;
+	return *this;
+}
+
+template<typename T>
+TArrayIterator<T> TArrayIterator<T>::operator--(int)
+{
+	TArrayIterator<T> Temp = *this;
+	--(*this);
+	return Temp;
+}
+
+template<typename T>
+T& TArrayIterator<T>::operator*()
+{
+	return *Pointer;
+}
+
+template<typename T>
+const T& TArrayIterator<T>::operator*() const
+{
+	return *Pointer;
+}
+
+template<typename T>
+T* TArrayIterator<T>::operator->()
+{
+	return Pointer;
+}
+
+template<typename T>
+const T* TArrayIterator<T>::operator->() const
+{
+	return Pointer;
+}
+
+/**
+ *------------------------------------------------------
+ * Array Container
+ *------------------------------------------------------
+ * A collection where the elements are stored continuous in memory.
+ * You should always use this over 'std::vector', due to better source
+ *   control, debuggability, memory tracking and consistency in the codebase.
+ * 
+ * @tparam T Element type.
+ */
+template<typename T>
+class TArray
+{
+public:
+	using FIterator             = TArrayIterator<T>;
+	using FConstIterator        = TArrayIterator<const T>;
+	using FReverseIterator      = TArrayIterator<T>;
+	using FReverseConstIterator = TArrayIterator<const T>;
+
+public:
+	/**
+	 * Default constructor.
+	 */
+	TArray();
+
+	/**
+	 * Copy constructor.
+	 * 
+	 * @param Other The array to copy.
+	 */
+	TArray(const TArray<T>& Other);
+
+	/**
+	 * Move constructor.
+	 * It doesn't allocate any memory.
+	 * 
+	 * @param Other The array to move.
+	 */
+	TArray(TArray<T>&& Other) noexcept;
+
+	/**
+	 * Constructor using an raw array.
+	 * 
+	 * @param Elements Address of the memory block holding the elements.
+	 * @param ElementsCount Number of elements to copy.
+	 */
+	TArray(const T* Elements, SizeT ElementsCount);
+
+	/**
+	 * Constructor using an raw array, with the ability to move the elements.
+	 * 
+	 * @param Elements Address of the memory block holding the elements.
+	 * @param ElementsCount Number of elements to copy/move.
+	 * @param bShouldMove Whether or not the elements will be moved into place.
+	 *   If false, the elements will be simply copied. Default value is false.
+	 */
+	TArray(T* Elements, SizeT ElementsCount, bool bShouldMove = false);
+
+	/**
+	 * Constructor using a C++ initializer list.
+	 * 
+	 * @param List The initializer list.
+	 */
+	TArray(std::initializer_list<T> List);
+
+	/**
+	 * Destructor.
+	 */
+	~TArray();
+
+	/**
+	 * Copy assignment operator.
+	 * 
+	 * @param Other The array to copy.
+	 *
+	 * @return A reference to this, after the copy.
+	 */
+	TArray<T>& operator=(const TArray<T>& Other);
+
+	/**
+	 * Move assignment operator.
+	 * 
+	 * @param Other The array to move.
+	 * 
+	 * @return A reference to this, after the move.
+	 */
+	TArray<T>& operator=(TArray<T>&& Other) noexcept;
+
+	/**
+	 * Assignment operator using a C++ initializer list.
+	 * 
+	 * @param List The initializer list.
+	 *
+	 * @return A reference to this, after the assignment.
+	 * 
+	 */
+	TArray<T>& operator=(std::initializer_list<T> List);
+
+public:
+	/** @return Address of the memory block holding the elements. */
+	OC_INLINE T* GetData() const;
+
+	/** @return Maximum number of elements that the currently allocated memory block can hold. */
+	OC_INLINE SizeT GetCapacity() const;
+
+	/** @return Number of currently stored elements. */
+	OC_INLINE SizeT Length() const;
+
+	/** @return True if the array is empty (the length is 0); False otherwise. */
+	OC_INLINE bool IsEmpty() const;
+
+public:
+	/**
+	 * Retrieves the element at the specified index.
+	 * 
+	 * @param Index The wanted index.
+	 * 
+	 * @return The element at the specified index.
+	 */
+	OC_INLINE T& At(SizeT Index);
+
+	/**
+	 * Retrieves the element at the specified index.
+	 * Const version of the above.
+	 * 
+	 * @param Index The wanted index.
+	 * 
+	 * @return The element at the specified index.
+	 */
+	OC_INLINE const T& At(SizeT Index) const;
+
+	/**
+	 * Index operator.
+	 * 
+	 * @param Index The wanted index.
+	 * 
+	 * @return The element stored at the specified index.
+	 */
+	OC_INLINE T& operator[](SizeT Index);
+
+	/**
+	 * Index operator.
+	 * Const version of the above.
+	 * 
+	 * @param Index The wanted index.
+	 *
+	 * @return The element stored at the specified index.
+	 */
+	OC_INLINE const T& operator[](SizeT Index) const;
+
+	/** @return The first element in the collection. */
+	OC_INLINE T& Front();
+
+	/**
+	 * Const version of the above.
+	 * @return The first element in the collection.
+	 */
+	OC_INLINE const T& Front() const;
+
+	/** @return The last element in the collection. */
+	OC_INLINE T& Back();
+
+	/**
+	 * Const version of the above.
+	 * @return The last element in the collection.
+	 */
+	OC_INLINE const T& Back() const;
+
+public:
+	/**
+	 * Adds a new element to the end of the array. It might cause a reallocation, so it can fit.
+	 * 
+	 * @param Element The element to add.
+	 * 
+	 * @return Reference to the newly created element stored in the array.
+	 */
+	T& Add(const T& Element);
+
+	/**
+	 * Adds a new element to the end of the array. It might cause a reallocation, so it can fit.
+	 * Move semantics version of the above.
+	 *
+	 * @param Element The element to add.
+	 *
+	 * @return Reference to the newly created element stored in the array.
+	 */
+	T& Add(T&& Element);
+
+	/**
+	 * Adds a new element to the end of the array. It might cause a reallocation, so it can fit.
+	 * The element is initialized with its default constructor.
+	 * 
+	 * @return Reference to the newly created element stored in the array.
+	 */
+	T& AddDefaulted();
+
+	/**
+	 * Adds new elements at the end of the array. It might cause a reallocation, so they can fit.
+	 * The elements are initialized with their default constructor.
+	 * 
+	 * @param Count The number of elements to add.
+	 * 
+	 * @return The index of the first added element.
+	 */
+	SizeT AddDefaulted(SizeT Count);
+
+	/**
+	 * Adds a new element to the end of the array. It might cause a reallocation, so it can fit.
+	 * The element is initialized with 0.
+	 *
+	 * @return Reference to the newly created element stored in the array.
+	 */
+	T& AddZeroed();
+
+	/**
+	 * Adds new elements at the end of the array. It might cause a reallocation, so they can fit.
+	 * The elements are initialized with 0.
+	 *
+	 * @param Count The number of elements to add.
+	 *
+	 * @return The index of the first added element.
+	 */
+	SizeT AddZeroed(SizeT Count);
+
+	/**
+	 *Adds a new element to the end of the array. It might cause a reallocation, so it can fit.
+	 * The element is NOT initialized with anything. This function might be unsafe.
+	 *
+	 * @return Reference to the newly created element stored in the array.
+	 */
+	T& AddUninitialized();
+
+	/**
+	 * Adds new elements at the end of the array. It might cause a reallocation, so they can fit.
+	 * The elements are NOT initialized with anything. This function might be unsafe.
+	 *
+	 * @param Count The number of elements to add.
+	 *
+	 * @return The index of the first added element.
+	 */
+	SizeT AddUninitialized(SizeT Count);
+
+	/**
+	 * Constructs a new element at the end of the array. It might cause a reallocation, so it can fit.
+	 * 
+	 * @param Args The parameters that will be passed to the element's constructor.
+	 * 
+	 * @return The index of the newly created element.
+	 */
+	template<typename... ArgsType>
+	SizeT EmplaceGetIndex(ArgsType&&... Args);
+
+	/**
+	 * Constructs a new element at the end of the array. It might cause a reallocation, so it can fit.
+	 *
+	 * @param Args The parameters that will be passed to the element's constructor.
+	 *
+	 * @return Reference to the newly created element.
+	 */
+	template<typename... ArgsType>
+	T& Emplace(ArgsType&&... Args);
+
+public:
+	/**
+	 * Resizes the array to the given number of elements.
+	 * If any new elements must be created, they will be initialized with their default constructor.
+	 * 
+	 * @param NewLength New length of the array.
+	 * @param bAllowShrinking Whether or not this function can shrink the in-use memory block.
+	 *   If this flag is set to true and 'NewLength' is less than 1/3 of the capacity, the memory
+	 *   block will be reallocated to 'NewLength' capacity.
+	 */
+	void SetLength(SizeT NewLength, bool bAllowShrinking = false);
+
+	/**
+	 * Resizes the array to the given number of elements.
+	 * If any new elements must be created, they will be initialized with 0.
+	 * 
+	 * @param NewLength New length of the array.
+	 */
+	void SetLengthZeroed(SizeT NewLength, bool bAllowShrinking = false);
+
+	/**
+	 * Resizes the array to the given number of elements.
+	 * If any new elements must be created, they will NOT be initialized with anything.
+	 * 
+	 * @param NewLength New length of the array.
+	 */
+	void SetLengthUninitialized(SizeT NewLength, bool bAllowShrinking = false);
+
+	/**
+	 * Resizes the array to the given number of elements.
+	 * This function only sets the variable to the new value, so it can be
+	 *   dangerous to use.
+	 * 
+	 * @param NewLength New length of the array.
+	 */
+	void SetLengthInternal(SizeT NewLength);
+
+	/**
+	* Reallocates the memory block to the given capacity.
+	* 
+	* @param NewCapacity New memory block capacity.
+	*/
+	void SetCapacity(SizeT NewCapacity);
+
+	/**
+	 * Clears the array.
+	 */
+	void Clear();
+
+public:
+	FIterator begin();
+	FIterator end();
+
+	FConstIterator begin() const;
+	FConstIterator end() const;
+
+	FReverseIterator rbegin();
+	FReverseIterator rend();
+
+	FReverseConstIterator rbegin() const;
+	FReverseConstIterator rend() const;
+
+private:
+	/**
+	 * 
+	 */
+	OC_INLINE SizeT NextCapacity(SizeT RequiredSize) const;
+
+	/**
+	 * 
+	 */
+	void ReAllocate(SizeT NewCapacity);
+
+	/**
+	 * 
+	 */
+	void ReAllocateNoCopy(SizeT NewCapacity);
+
+private:
+	/** Address of the memory block holding the elements. */
+	T* Data;
+
+	/** Maximum number of elements that the currently allocated memory block can hold. */
+	SizeT Capacity;
+
+	/** Number of currently stored elements. */
+	SizeT Size;
+};
+
+template<typename T>
+TArray<T>::TArray()
+	: Data(nullptr)
+	, Capacity(0)
+	, Size(0)
+{}
+
+template<typename T>
+TArray<T>::TArray(const TArray<T>& Other)
+	: Data(nullptr)
+	, Capacity(0)
+	, Size(0)
+{
+	ReAllocateNoCopy(Other.Length());
+	Size = Other.Length();
+
+	for (SizeT Index = 0; Index < Other.Length(); Index++)
+	{
+		new (Data + Index) T(Other.GetData()[Index]);
+	}
+}
+
+template<typename T>
+TArray<T>::TArray(TArray<T>&& Other) noexcept
+	: Data(Other.Data)
+	, Capacity(Other.Capacity)
+	, Size(Other.Size)
+{
+	Other.Data = nullptr;
+	Other.Capacity = 0;
+	Other.Size = 0;
+}
+
+template<typename T>
+TArray<T>::TArray(const T* Array, SizeT ArrayLength)
+	: Data(nullptr)
+	, Capacity(0)
+	, Size(0)
+{
+	ReAllocateNoCopy(ArrayLength);
+	Size = ArrayLength;
+
+	for (SizeT Index = 0; Index < ArrayLength; Index++)
+	{
+		new (Data + Index) T(Array[Index]);
+	}
+}
+
+template<typename T>
+TArray<T>::TArray(T* Array, SizeT ArrayLength, bool bShouldMove)
+	: Data(nullptr)
+	, Capacity(0)
+	, Size(0)
+{
+	ReAllocateNoCopy(ArrayLength);
+	Size = ArrayLength;
+
+	if (bShouldMove)
+	{
+		for (SizeT Index = 0; Index < ArrayLength; Index++)
+		{
+			new (Data + Index) T(FTypes::Move(Array[Index]));
+		}
+	}
+	else
+	{
+		for (SizeT Index = 0; Index < ArrayLength; Index++)
+		{
+			new (Data + Index) T(Array[Index]);
+		}
+	}
+}
+
+template<typename T>
+TArray<T>::TArray(std::initializer_list<T> List)
+	: Data(nullptr)
+	, Capacity(0)
+	, Size(0)
+{
+	const T* ListData = List.begin();
+	SizeT ListSize = List.size();
+
+	ReAllocateNoCopy(ListSize);
+	Size = ListSize;
+
+	for (SizeT Index = 0; Index < ListSize; Index++)
+	{
+		new (Data + Index) T(ListData[Index]);
+	}
+}
+
+template<typename T>
+TArray<T>::~TArray()
+{
+	Clear();
+	FMemory::Free(Data);
+}
+
+template<typename T>
+TArray<T>& TArray<T>::operator=(const TArray<T>& Other)
+{
+	Clear();
+
+	if (Other.Length() > Capacity)
+	{
+		ReAllocateNoCopy(NextCapacity(Other.Length()));
+	}
+
+	for (SizeT Index = 0; Index < Other.Length(); Index++)
+	{
+		new (Data + Index) T(Other.GetData()[Index]);
+	}
+
+	Size = Other.Length();
+	return *this;
+}
+
+template<typename T>
+TArray<T>& TArray<T>::operator=(TArray<T>&& Other) noexcept
+{
+	Clear();
+
+	T* TempData = Data;
+	SizeT TempCapacity = Capacity;
+
+	Data = Other.GetData();
+	Capacity = Other.GetCapacity();
+	Size = Other.Length();
+
+	Other.Data = TempData;
+	Other.Capacity = TempCapacity;
+	Other.Size = 0;
+
+	return *this;
+}
+
+template<typename T>
+TArray<T>& TArray<T>::operator=(std::initializer_list<T> List)
+{
+	Clear();
+
+	const T* ListData = List.begin();
+	SizeT ListSize = List.size();
+
+	if (ListSize > Capacity)
+	{
+		ReAllocateNoCopy(NextCapacity(ListSize));
+	}
+
+	for (SizeT Index = 0; Index < ListSize; Index++)
+	{
+		new (Data + Index) T(ListData[Index]);
+	}
+
+	Size = ListSize;
+	return *this;
+}
+
+template<typename T>
+OC_INLINE T* TArray<T>::GetData() const
+{
+	return Data;
+}
+
+template<typename T>
+OC_INLINE SizeT TArray<T>::GetCapacity() const
+{
+	return Capacity;
+}
+
+template<typename T>
+OC_INLINE SizeT TArray<T>::Length() const
+{
+	return Size;
+}
+
+template<typename T>
+OC_INLINE bool TArray<T>::IsEmpty() const
+{
+	return Size == 0;
+}
+
+template<typename T>
+OC_INLINE T& TArray<T>::At(SizeT Index)
+{
+	Checkf(Index < Size, "Index out of range!");
+	return Data[Index];
+}
+
+template<typename T>
+OC_INLINE const T& TArray<T>::At(SizeT Index) const
+{
+	Checkf(Index < Size, "Index out of range!");
+	return Data[Index];
+}
+
+template<typename T>
+OC_INLINE T& TArray<T>::operator[](SizeT Index)
+{
+	Checkf(Index < Size, "Index out of range!");
+	return Data[Index];
+}
+
+template<typename T>
+OC_INLINE const T& TArray<T>::operator[](SizeT Index) const
+{
+	Checkf(Index < Size, "Index out of range!");
+	return Data[Index];
+}
+
+template<typename T>
+OC_INLINE T& TArray<T>::Front()
+{
+	Checkf(Size > 0, "The array is empty!");
+	return Data[0];
+}
+
+template<typename T>
+OC_INLINE const T& TArray<T>::Front() const
+{
+	Checkf(Size > 0, "The array is empty!");
+	return Data[0];
+}
+
+template<typename T>
+OC_INLINE T& TArray<T>::Back()
+{
+	Checkf(Size > 0, "The array is empty!");
+	return Data[Size - 1];
+}
+
+template<typename T>
+OC_INLINE const T& TArray<T>::Back() const
+{
+	Checkf(Size > 0, "The array is empty!");
+	return Data[Size - 1];
+}
+
+template<typename T>
+T& TArray<T>::Add(const T& Element)
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	new (Data + Size) T(Element);
+	return Data[Size++];
+}
+
+template<typename T>
+T& TArray<T>::Add(T&& Element)
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	new (Data + Size) T(FTypes::Move(Element));
+	return Data[Size++];
+}
+
+template<typename T>
+T& TArray<T>::AddDefaulted()
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	new (Data + Size) T();
+	return Data[Size++];
+}
+
+template<typename T>
+SizeT TArray<T>::AddDefaulted(SizeT Count)
+{
+	if (Size + Count > Capacity)
+	{
+		ReAllocate(NextCapacity(Size + Count));
+	}
+
+	for (SizeT Index = 0; Index < Count; Index++)
+	{
+		new (Data + Size + Index) T();
+	}
+
+	Size += Count;
+	return Size - Count;
+}
+
+template<typename T>
+T& TArray<T>::AddZeroed()
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	FMemory::Zero(Data + Size, sizeof(T));
+	return Data[Size++];
+}
+
+template<typename T>
+SizeT TArray<T>::AddZeroed(SizeT Count)
+{
+	if (Size + Count > Capacity)
+	{
+		ReAllocate(NextCapacity(Size + Count));
+	}
+
+	FMemory::Zero(Data + Size, Count * sizeof(T));
+
+	Size += Count;
+	return Size - Count;
+}
+
+template<typename T>
+T& TArray<T>::AddUninitialized()
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	return Data[Size++];
+}
+
+template<typename T>
+SizeT TArray<T>::AddUninitialized(SizeT Count)
+{
+	if (Size + Count > Capacity)
+	{
+		ReAllocate(NextCapacity(Size + Count));
+	}
+
+	Size += Count;
+	return Size - Count;
+}
+
+template<typename T>
+template<typename... ArgsType>
+SizeT TArray<T>::EmplaceGetIndex(ArgsType&&... Args)
+{
+	if (Size >= Capacity)
+	{
+		ReAllocate(NextCapacity(Size + 1));
+	}
+
+	new (Data + Size) T(FTypes::Forward<ArgsType>(Args)...);
+	return (Size++);
+}
+
+template<typename T>
+template<typename... ArgsType>
+T& TArray<T>::Emplace(ArgsType&&... Args)
+{
+	SizeT Index = EmplaceGetIndex(FTypes::Forward<ArgsType>(Args)...);
+	return Data[Index];
+}
+
+template<typename T>
+void TArray<T>::SetLength(SizeT NewLength, bool bAllowShrinking)
+{
+	SizeT OldLength = Size;
+	SetLengthUninitialized(NewLength, bAllowShrinking);
+
+	for (SizeT Index = OldLength; Index < NewLength; Index++)
+	{
+		new (Data + Index) T();
+	}
+}
+
+template<typename T>
+void TArray<T>::SetLengthZeroed(SizeT NewLength, bool bAllowShrinking)
+{
+	SizeT OldLength = Size;
+	SetLengthUninitialized(NewLength, bAllowShrinking);
+
+	if (NewLength > OldLength)
+	{
+		FMemory::Zero(Data + OldLength, (NewLength - OldLength) * sizeof(T));
+	}
+}
+
+template<typename T>
+void TArray<T>::SetLengthUninitialized(SizeT NewLength, bool bAllowShrinking)
+{
+	if (NewLength == Size)
+	{
+		return;
+	}
+
+	if (NewLength < Size)
+	{
+		for (SizeT Index = NewLength; Index < Size; Index++)
+		{
+			Data[Index].~T();
+		}
+
+		if (bAllowShrinking && (NewLength < (Capacity / 3)))
+		{
+			ReAllocate(NewLength);
+		}
+	}
+	else
+	{
+		if (NewLength > Capacity)
+		{
+			ReAllocate(NextCapacity(NewLength));
+		}
+	}
+
+	Size = NewLength;
+}
+
+template<typename T>
+void TArray<T>::SetLengthInternal(SizeT NewLength)
+{
+	Size = NewLength;
+}
+
+template<typename T>
+void TArray<T>::SetCapacity(SizeT NewCapacity)
+{
+	if (NewCapacity == Capacity)
+	{
+		return;
+	}
+
+	ReAllocate(NewCapacity);
+}
+
+template<typename T>
+void TArray<T>::Clear()
+{
+	for (SizeT Index = 0; Index < Size; Index++)
+	{
+		Data[Index].~T();
+	}
+	Size = 0;
+}
+
+template<typename T>
+typename TArray<T>::FIterator TArray<T>::begin()
+{
+	return FIterator(Data);
+}
+
+template<typename T>
+typename TArray<T>::FIterator TArray<T>::end()
+{
+	return FIterator(Data + Size);
+}
+
+template<typename T>
+typename TArray<T>::FConstIterator TArray<T>::begin() const
+{
+	return FConstIterator(Data);
+}
+
+template<typename T>
+typename TArray<T>::FConstIterator TArray<T>::end() const
+{
+	return FConstIterator(Data + Size);
+}
+
+template<typename T>
+typename TArray<T>::FReverseIterator TArray<T>::rbegin()
+{
+	return FReverseIterator(Data + Size - 1);
+}
+
+template<typename T>
+typename TArray<T>::FReverseIterator TArray<T>::rend()
+{
+	return FReverseIterator(Data - 1);
+}
+
+template<typename T>
+typename TArray<T>::FReverseConstIterator TArray<T>::rbegin() const
+{
+	return FReverseConstIterator(Data + Size - 1);
+}
+
+template<typename T>
+typename TArray<T>::FReverseConstIterator TArray<T>::rend() const
+{
+	return FReverseConstIterator(Data - 1);
+}
+
+template<typename T>
+OC_INLINE SizeT TArray<T>::NextCapacity(SizeT RequiredSize) const
+{
+	SizeT CapacityCycle = Capacity + Capacity / 2 + 1;
+	return (RequiredSize > CapacityCycle) ? RequiredSize : CapacityCycle;
+}
+
+template<typename T>
+void TArray<T>::ReAllocate(SizeT NewCapacity)
+{
+	T* NewBlock = (T*)FMemory::AllocateTagged(NewCapacity * sizeof(T));
+
+	if (NewCapacity < Size)
+	{
+		for (SizeT Index = NewCapacity; Index < Size; Index++)
+		{
+			Data[Index].~T();
+		}
+		Size = NewCapacity;
+	}
+
+	for (SizeT Index = 0; Index < Size; Index++)
+	{
+		new (NewBlock + Index) T(FTypes::Move(Data[Index]));
+		Data[Index].~T();
+	}
+
+	FMemory::Free(Data);
+	Data = NewBlock;
+	Capacity = NewCapacity;
+}
+
+template<typename T>
+void TArray<T>::ReAllocateNoCopy(SizeT NewCapacity)
+{
+	Clear();
+
+	FMemory::Free(Data);
+	Data = (T*)FMemory::AllocateTagged(NewCapacity * sizeof(T));
+	Capacity = NewCapacity;
+}
+
+// Array Container
+#pragma endregion
 
 #pragma region Math Utilities
 
@@ -2029,6 +3105,15 @@ OC_INLINE TVector4<T> operator*(T Scalar, const TVector4<T>& Vector)
 	#include <Windows.h>
 #endif // OC_PLATFORM_WINDOWS
 
+SizeT FormatString(char* Buffer, SizeT BufferLength, const char* Format, ...)
+{
+	va_list VL;
+	va_start(VL, Format);
+	int Written = vsprintf_s(Buffer, (size_t)BufferLength, Format, VL);
+	va_end(VL);
+	return (SizeT)Written;
+}
+
 namespace OC
 {
 
@@ -2245,7 +3330,7 @@ OC_NODISCARD void* FMemory::Allocate(SizeT BlockSize)
 	return FMemory::AllocateRaw(BlockSize);
 }
 
-OC_NODISCARD void* FMemory::AllocateTagged(SizeT BlockSize)
+OC_NODISCARD void* FMemory::AllocateTaggedImplementation(SizeT BlockSize, const char* File, const char* Function, uint32 Line)
 {
 	if (BlockSize == 0)
 	{
@@ -2314,20 +3399,20 @@ void FLogger::Write(const char* Tag, ELogType LogType, const char* Message, ...)
 	auto TextColor       = ConsoleColors[2 * (uint8)LogType + 0];
 	auto BackgroundColor = ConsoleColors[2 * (uint8)LogType + 1];
 
-	static char buffer[8192] = {};
-	FMemory::Zero(buffer, sizeof(buffer));
+	static char Buffer[8192] = {};
+	FMemory::Zero(Buffer, sizeof(Buffer));
 
-	va_list vl;
-	va_start(vl, Message);
-	vsprintf_s(buffer, Message, vl);
-	va_end(vl);
+	va_list VL;
+	va_start(VL, Message);
+	vsprintf_s(Buffer, Message, VL);
+	va_end(VL);
 
-	static char buffer2[8192] = {};
-	FMemory::Zero(buffer2, sizeof(buffer2));
-	int Written = sprintf_s(buffer2, "[%s][%s]: %s\n", LogTypesNames[(uint8)LogType], Tag, buffer);
+	static char Buffer2[8192] = {};
+	FMemory::Zero(Buffer2, sizeof(Buffer2));
+	int Written = sprintf_s(Buffer2, "[%s][%s]: %s\n", LogTypesNames[(uint8)LogType], Tag, Buffer);
 
 	FPlatform::SetConsoleColor(TextColor, BackgroundColor);
-	FPlatform::WriteToConsole(buffer2, (SizeT)Written);
+	FPlatform::WriteToConsole(Buffer2, (SizeT)Written);
 }
 
 } // namespace OC
