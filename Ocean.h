@@ -44,6 +44,12 @@
 	#define OC_IMPLEMENTATION          0
 #endif // OC_IMPLEMENTATION
 
+#define OC_API
+
+#define internal static
+#define persistent static
+#define global static
+
 #ifdef _WIN32
 	#define OC_PLATFORM_WINDOWS        1
 	#ifdef _WIN64
@@ -1757,10 +1763,80 @@ public:
 	 */
 	static float Sqrt(float X);
 
-	/**
-	 * @see 'FMath::Sqrt(float)'.
-	 */
+	/** @see 'FMath::Sqrt(float)'. */
 	static double Sqrt(double X);
+
+	/**
+	 * Calculates the sine of an angle.
+	 * 
+	 * @param X The angle (in radians).
+	 * 
+	 * @return The sine.
+	 */
+	static float Sin(float X);
+
+	/** @see 'FMath::Sin(float)'. */
+	static double Sin(double X);
+
+	/**
+	 * Calculates the cosine of an angle.
+	 *
+	 * @param X The angle (in radians).
+	 *
+	 * @return The sinus.
+	 */
+	static float Cos(float X);
+
+	/** @see 'FMath::Cos(float)'. */
+	static double Cos(double X);
+
+	/**
+	 * Calculates the tangent of an angle.
+	 *
+	 * @param X The angle (in radians).
+	 *
+	 * @return The sinus.
+	 */
+	static float Tan(float X);
+
+	/** @see 'FMath::Tan(float)'. */
+	static double Tan(double X);
+
+	/**
+	 * Calculates the asin for a number.
+	 *
+	 * @param X The number.
+	 *
+	 * @return the asin.
+	 */
+	static float Asin(float X);
+
+	/** @see 'FMath::Asin(float)'. */
+	static double Asin(double X);
+
+	/**
+	 * Calculates the acos for a number.
+	 * 
+	 * @param X The number.
+	 * 
+	 * @return the acos.
+	 */
+	static float Acos(float X);
+
+	/** @see 'FMath::Acos(float)'. */
+	static double Acos(double X);
+
+	/**
+	 * Calculates the atan for a number.
+	 *
+	 * @param X The number.
+	 *
+	 * @return the atan.
+	 */
+	static float Atan(float X);
+
+	/** @see 'FMath::Atan(float)'. */
+	static double Atan(double X);
 };
 
 // Math Utilities
@@ -3197,7 +3273,7 @@ void OnCheckFailed(const char* Expression, const char* File, const char* Functio
 
 } // namespace OC
 
-#pragma region Platform Windows Implementation
+#pragma region Platform Implementation
 
 namespace OC
 {
@@ -3251,7 +3327,9 @@ void FPlatform::Shutdown()
 void* FPlatform::AllocMemory(SizeT BlockSize)
 {
 #if OC_PLATFORM_WINDOWS
-	return malloc((size_t)BlockSize);
+	void* MemoryBlock = malloc((size_t)BlockSize);
+	memset(MemoryBlock, 0, BlockSize);
+	return MemoryBlock;
 #endif // OC_PLATFORM_WINDOWS
 }
 
@@ -3430,6 +3508,66 @@ float FMath::Sqrt(float X)
 double FMath::Sqrt(double X)
 {
 	return sqrt(X);
+}
+
+float FMath::Sin(float X)
+{
+	return sinf(X);
+}
+
+double FMath::Sin(double X)
+{
+	return sin(X);
+}
+
+float FMath::Cos(float X)
+{
+	return cosf(X);
+}
+
+double FMath::Cos(double X)
+{
+	return cos(X);
+}
+
+float FMath::Tan(float X)
+{
+	return tanf(X);
+}
+
+double FMath::Tan(double X)
+{
+	return tan(X);
+}
+
+float FMath::Asin(float X)
+{
+	return asinf(X);
+}
+
+double FMath::Asin(double X)
+{
+	return asin(X);
+}
+
+float FMath::Acos(float X)
+{
+	return acosf(X);
+}
+
+double FMath::Acos(double X)
+{
+	return acos(X);
+}
+
+float FMath::Atan(float X)
+{
+	return atanf(X);
+}
+
+double FMath::Atan(double X)
+{
+	return atan(X);
 }
 
 // Math Utilities Implementation
