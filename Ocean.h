@@ -2,13 +2,35 @@
  *--------------------------------------------------------------------------------------
  * Ocean.h
  *--------------------------------------------------------------------------------------
- * Copyright to Avram Traian. 2022 - 2022.
- * 
  * Ocean is a framework that aims towards creating a platform that can
  *   used for creating performance-critical demos & presentations, while
  *   having a simple and descriptive API.
  * 
  * The GitHub project can be found at: 'https://github.com/avramtraian/Ocean'.
+ */
+
+/**
+ * MIT License
+ * 
+ * Copyright(c) 2022 Avram Traian
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files(the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and /or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions :
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
  */
 
 #pragma once
@@ -46,7 +68,46 @@
 #if OC_COMPILER_MSVC
 	#define OC_INLINE       __forceinline
 	#define OC_DEBUGBREAK() __debugbreak()
+
+	#define OC_FUNCTION     __FUNCSIG__
 #endif
+
+#define OC_NODISCARD    [[nodiscard]]
+#define OC_MAYBE_UNUSED [[maybe_unused]]
+
+#define OC_FILE __FILE__
+#define OC_LINE __LINE__
+
+#define OC_CONFIGURATION_ALREADY_DEFINED 0
+#ifdef OC_DEBUG
+	#if OC_DEBUG
+		#undef OC_CONFIGURATION_ALREADY_DEFINED
+		#define OC_CONFIGURATION_ALREADY_DEFINED 1
+	#endif // OC_DEBUG
+#endif // OC_DEBUG
+
+#ifdef OC_RELEASE
+	#if OC_RELEASE
+		#undef OC_CONFIGURATION_ALREADY_DEFINED
+		#define OC_CONFIGURATION_ALREADY_DEFINED 1
+	#endif // OC_RELEASE
+#endif // OC_RELEASE
+
+#if !OC_CONFIGURATION_ALREADY_DEFINED
+	#ifdef _DEBUG
+		#define OC_DEBUG   1
+	#else
+		#define OC_RELEASE 1
+	#endif
+#endif
+#undef OC_CONFIGURATION_ALREADY_DEFINED
+
+#ifndef OC_DEBUG
+	#define OC_DEBUG   0
+#endif // OC_DEBUG
+#ifndef OC_RELEASE
+	#define OC_RELEASE 0
+#endif // OC_RELEASE
 
 #if OC_PLATFORM_WINDOWS_32
 
@@ -63,6 +124,7 @@ struct FWindows32PlatformTypes
 	using int16  = signed __int16;
 	using int32  = signed __int32;
 	using int64  = signed __int64;
+	using SizeT  = unsigned __int32;
 };
 using FPlatformTypes = FWindows32PlatformTypes;
 
@@ -81,6 +143,7 @@ struct FWindows64PlatformTypes
 	using int16  = signed __int16;
 	using int32  = signed __int32;
 	using int64  = signed __int64;
+	using SizeT  = unsigned __int64;
 };
 using FPlatformTypes = FWindows64PlatformTypes;
 
@@ -111,6 +174,361 @@ using int32 = FPlatformTypes::int32;
 
 /** A 64-bit Integer. Signed. */
 using int64 = FPlatformTypes::int64;
+
+/** An Unsigned Integer. 32 or 64-bit, depending on the system's architecture. */
+using SizeT = FPlatformTypes::SizeT;
+
+#if OC_DEBUG
+	#define OC_ENABLE_CHECKS   1
+	#define OC_ENABLE_VERIFIES 1
+#elif OC_RELEASE
+	#define OC_ENABLE_CHECKS   0
+	#define OC_ENABLE_VERIFIES 0
+#endif
+
+#ifndef OC_USE_CHECKS_IN_RELEASE
+	#define OC_USE_CHECKS_IN_RELEASE   0
+#endif // OC_USE_CHECKS_IN_RELEASE
+#ifndef OC_USE_VERIFIES_IN_RELEASE
+	#define OC_USE_VERIFIES_IN_RELEASE 0
+#endif // OC_USE_VERIFIES_IN_RELEASE
+
+#if OC_RELEASE
+	#if OC_USE_CHECKS_IN_RELEASE
+		#undef OC_ENABLE_CHECKS
+		#define OC_ENABLE_CHECKS   1
+	#endif // OC_USE_CHECKS_IN_RELEASE
+	#if OC_USE_VERIFIES_IN_RELEASE
+		#undef OC_ENABLE_VERIFIES
+		#define OC_ENABLE_VERIFIES 1
+	#endif // OC_USE_VERIFIES_IN_RELEASE
+#endif // OC_RELEASE
+
+namespace OC
+{
+
+void OnCheckFailed(const char* Expression, const char* File, const char* Function, uint32 Line, const char* Message);
+
+} // namespace OC
+
+#if OC_ENABLE_CHECKS
+
+/**
+ * Checks if the expression is evaluated to true. If it is, nothing else is performed.
+ *   Otherwise, an assert will be issued and the debugger will break on the line where the
+ *   macro is located. After that, the application will force-stop.
+ * This macro is enabled only in Debug builds, or if 'OC_USE_CHECKS_IN_RELEASE' is set to 1.
+ *   Otherwise, it is defined as nothing (excluded from build).
+ * If you want to provide a custom message, use 'Checkf' instead.
+ * 
+ * @param EXPRESSION The expression to evaluate.
+ */
+#define Check(EXPRESSION)                                                         \
+	if (!(EXPRESSION))                                                            \
+	{                                                                             \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, nullptr); \
+		OC_DEBUGBREAK();                                                          \
+	}
+
+/**
+ * Checks if the expression is evaluated to true. If it is, nothing else is performed.
+ *   Otherwise, an assert will be issued and the debugger will break on the line where the
+ *   macro is located. After that, the application will force-stop.
+ * This macro is enabled only in Debug builds, or if 'OC_USE_CHECKS_IN_RELEASE' is set to 1.
+ *   Otherwise, it is defined as nothing (excluded from build).
+ * An message must be provided. If you don't want to, use 'Check' instead.
+ * 
+ * @param EXPRESSION The expression to evaluate.
+ * @param ... The message.
+ */
+#define Checkf(EXPRESSION, ...)                                                       \
+	if (!(EXPRESSION))                                                                \
+	{                                                                                 \
+		char buffer[512] = {};                                                        \
+		sprintf_s(buffer, __VA_ARGS__);                                               \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, buffer);      \
+		OC_DEBUGBREAK();                                                              \
+	}
+
+/**
+ * Runs a sequence of code inside an enclosed scope.
+ * This macro is enabled only in Debug builds, or if 'OC_USE_CHECKS_IN_RELEASE' is set to 1.
+ *   Otherwise, it is defined as nothing (excluded from build).
+ * 
+ * @param ... The sequence of code to run.
+ */
+#define CheckCode(...) \
+	{                  \
+		__VA_ARGS__    \
+	}
+
+#else
+
+#define Check(EXPRESSION)       // Ignore from build.
+#define Checkf(EXPRESSION, ...) // Ignore from build.
+#define CheckCode(...)          // Ignore from build.
+
+#endif // OC_ENABLE_CHECKS
+
+#if OC_ENABLE_VERIFIES
+
+/**
+ * Same as 'Check', but when this macro is disabled, the expression is run without performing any checks.
+ * @see 'Check'.
+ */
+#define Verify(EXPRESSION)                                                        \
+	if (!(EXPRESSION))                                                            \
+	{                                                                             \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, nullptr); \
+		OC_DEBUGBREAK();                                                          \
+	}
+
+/**
+ * Same as 'Check', but when this macro is disabled, the expression is run without performing any checks.
+ * @see 'Check'.
+ */
+#define Verifyf(EXPRESSION, ...)                                                      \
+	if (!(EXPRESSION))                                                                \
+	{                                                                                 \
+		char buffer[512] = {};                                                        \
+		sprintf_s(buffer, __VA_ARGS__);                                               \
+		::OC::OnCheckFailed(#EXPRESSION, OC_FILE, OC_FUNCTION, OC_LINE, buffer);      \
+		OC_DEBUGBREAK();                                                              \
+	}
+
+#else
+
+#define Verify(EXPRESSION) EXPRESSION       // Run the expression, without any checks.
+#define Verifyf(EXPRESSION, ...) EXPRESSION	// Run the expression, without any checks.
+
+#endif // OC_ENABLE_VERIFIES
+
+namespace OC
+{
+
+class FPlatform
+{
+public:
+	static bool Initialize();
+	static void Shutdown();
+
+public:
+	static void* AllocMemory(SizeT BlockSize);
+	static void FreeMemory(void* MemoryBlock);
+
+public:
+	enum class EConsoleColor
+	{
+		Black    = 0,  Blue        = 1,  Green       = 2,  Aqua       = 3,
+		Red      = 4,  Purple      = 5,  Yellow      = 6,  White      = 7,
+		Gray     = 8,  LightBlue   = 9,  LightGreen  = 10, LightAqua  = 11,
+		LightRed = 12, LightPurple = 13, LightYellow = 14, LightWhite = 15
+	};
+
+public:
+	static bool SetConsoleColor(EConsoleColor TextColor, EConsoleColor BackgroundColor);
+	static bool WriteToConsole(const char* Message, SizeT MessageSize);
+};
+
+} // namespace OC
+
+/**
+ *--------------------------------------
+ * Structure for all memory operations.
+ *--------------------------------------
+ */
+class FMemory
+{
+public:
+	/**
+	 * 
+	 */
+	OC_NODISCARD static void* AllocateRaw(SizeT BlockSize);
+
+	/**
+	 * 
+	 */
+	OC_NODISCARD static void* Allocate(SizeT BlockSize);
+
+	/**
+	 * 
+	 */
+	OC_NODISCARD static void* AllocateTagged(SizeT BlockSize);
+
+	/**
+	 * 
+	 */
+	static void FreeRaw(void* MemoryBlock);
+
+	/**
+	 * 
+	 */
+	static void Free(void* MemoryBlock);
+
+public:
+	/**
+	 * Copies a number of bytes from the location pointed by the Source pointer to the location
+	 *   pointed by the Destination pointer.
+	 * The underlying types of pointers are irrelevant. The result is simply a binary copy of the data.
+	 * To avoid overflows, both Destination and Source should point to memory blocks of at least Size
+	 *   bytes. Also, the memory blocks should not overlap.
+	 * 
+	 * @param Destination Pointer to the block of memory where the bytes will be copied to.
+	 * @param Source Pointer to the block of memory where the bytes will be copied from.
+	 * @param Size The length (in bytes) of the copy.
+	 */
+	static void Copy(void* Destination, const void* Source, SizeT Size);
+
+	/**
+	 * Sets a number of bytes from the location pointed by the Destination pointer to the specified value.
+	 * 
+	 * @param Destination Pointer to the block of memory where the bytes will be set. To avoid overflow,
+	 *   the memory block should be at least Size bytes long.
+	 * @param Value The value to set each byte to.
+	 * @param Size The number of bytes to set.
+	 */
+	static void Set(void* Destination, uint8 Value, SizeT Size);
+
+	/**
+	 * Sets a block of memory to 0.
+	 * 
+	 * @param Destination Pointer to the block of memory to set to 0. To avoid overflow, the memory block
+	 *   should be at least Size bytes long.
+	 * @param Size The number of bytes to set to 0.
+	 */
+	static void Zero(void* Destination, SizeT Size);
+
+public:
+	static bool Initialize();
+	static void Shutdown();
+};
+
+namespace OC
+{
+
+class FLogger
+{
+public:
+	enum class ELogType
+	{
+		Debug, Trace, Info, Warn, Error, Fatal
+	};
+
+public:
+	static void Write(const char* Tag, ELogType LogType, const char* Message, ...);
+};
+
+} // namespace OC
+
+#if OC_DEBUG
+	#define OC_ENABLE_DEBUG_LOGS 1
+	#define OC_ENABLE_TRACE_LOGS 1
+	#define OC_ENABLE_INFO_LOGS  1
+	#define OC_ENABLE_WARN_LOGS  1
+	#define OC_ENABLE_ERROR_LOGS 1
+	#define OC_ENABLE_FATAL_LOGS 1
+#elif OC_RELEASE
+	#define OC_ENABLE_DEBUG_LOGS 0
+	#define OC_ENABLE_TRACE_LOGS 0
+	#define OC_ENABLE_INFO_LOGS  0
+	#define OC_ENABLE_WARN_LOGS  0
+	#define OC_ENABLE_ERROR_LOGS 1
+	#define OC_ENABLE_FATAL_LOGS 1
+#endif
+
+#ifndef OC_USE_DEBUG_LOGS_IN_RELEASE
+	#define OC_USE_DEBUG_LOGS_IN_RELEASE 0
+#endif // OC_USE_DEBUG_LOGS_IN_RELEASE
+#ifndef OC_USE_TRACE_LOGS_IN_RELEASE
+	#define OC_USE_TRACE_LOGS_IN_RELEASE 0
+#endif // OC_USE_TRACE_LOGS_IN_RELEASE
+#ifndef OC_USE_INFO_LOGS_IN_RELEASE
+	#define OC_USE_INFO_LOGS_IN_RELEASE  0
+#endif // OC_USE_INFO_LOGS_IN_RELEASE
+#ifndef OC_USE_WARN_LOGS_IN_RELEASE
+	#define OC_USE_WARN_LOGS_IN_RELEASE  0
+#endif // OC_USE_WARN_LOGS_IN_RELEASE
+
+#if OC_RELEASE
+	#if OC_USE_DEBUG_LOGS_IN_RELEASE
+		#undef OC_ENABLE_DEBUG_LOGS
+		#define OC_ENABLE_DEBUG_LOGS 1
+	#endif // OC_USE_DEBUG_LOGS_IN_RELEASE
+	#if OC_USE_TRACE_LOGS_IN_RELEASE
+		#undef OC_ENABLE_TRACE_LOGS
+		#define OC_ENABLE_TRACE_LOGS 1
+	#endif // OC_USE_DEBUG_LOGS_IN_RELEASE
+	#if OC_USE_INFO_LOGS_IN_RELEASE
+		#undef OC_ENABLE_INFO_LOGS
+		#define OC_ENABLE_INFO_LOGS  1
+	#endif // OC_USE_DEBUG_LOGS_IN_RELEASE
+	#if OC_USE_WARN_LOGS_IN_RELEASE
+		#undef OC_ENABLE_WARN_LOGS
+		#define OC_ENABLE_WARN_LOGS  1
+	#endif // OC_USE_DEBUG_LOGS_IN_RELEASE
+#endif // OC_RELEASE
+
+#if OC_ENABLE_DEBUG_LOGS
+#define OC_CORE_DEBUG(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Debug, __VA_ARGS__)
+#define OC_TAG_DEBUG(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Debug, __VA_ARGS__)
+#define OC_GAME_DEBUG(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Debug, __VA_ARGS__)
+#else
+#define OC_CORE_DEBUG(...)     // Ignore from build.
+#define OC_TAG_DEBUG(TAG, ...) // Ignore from build.
+#define OC_GAME_DEBUG(...)     // Ignore from build.
+#endif // OC_ENABLE_DEBUG_LOGS
+
+#if OC_ENABLE_TRACE_LOGS
+#define OC_CORE_TRACE(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Trace, __VA_ARGS__)
+#define OC_TAG_TRACE(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Trace, __VA_ARGS__)
+#define OC_GAME_TRACE(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Trace, __VA_ARGS__)
+#else
+#define OC_CORE_TRACE(...)     // Ignore from build.
+#define OC_TAG_TRACE(TAG, ...) // Ignore from build.
+#define OC_GAME_TRACE(...)     // Ignore from build.
+#endif // OC_ENABLE_TRACE_LOGS
+
+#if OC_ENABLE_INFO_LOGS
+#define OC_CORE_INFO(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Info, __VA_ARGS__)
+#define OC_TAG_INFO(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Info, __VA_ARGS__)
+#define OC_GAME_INFO(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Info, __VA_ARGS__)
+#else
+#define OC_CORE_INFO(...)     // Ignore from build.
+#define OC_TAG_INFO(TAG, ...) // Ignore from build.
+#define OC_GAME_INFO(...)     // Ignore from build.
+#endif // OC_ENABLE_INFO_LOGS
+
+#if OC_ENABLE_WARN_LOGS
+#define OC_CORE_WARN(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Warn, __VA_ARGS__)
+#define OC_TAG_WARN(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Warn, __VA_ARGS__)
+#define OC_GAME_WARN(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Warn, __VA_ARGS__)
+#else
+#define OC_CORE_WARN(...)     // Ignore from build.
+#define OC_TAG_WARN(TAG, ...) // Ignore from build.
+#define OC_GAME_WARN(...)     // Ignore from build.
+#endif // OC_ENABLE_WARN_LOGS
+
+#if OC_ENABLE_ERROR_LOGS
+#define OC_CORE_ERROR(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Error, __VA_ARGS__)
+#define OC_TAG_ERROR(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Error, __VA_ARGS__)
+#define OC_GAME_ERROR(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Error, __VA_ARGS__)
+#else
+#define OC_CORE_ERROR(...)     // Ignore from build.
+#define OC_TAG_ERROR(TAG, ...) // Ignore from build.
+#define OC_GAME_ERROR(...)     // Ignore from build.
+#endif // OC_ENABLE_ERROR_LOGS
+
+#if OC_ENABLE_FATAL_LOGS
+#define OC_CORE_FATAL(...)     ::OC::FLogger::Write("CORE", ::OC::FLogger::ELogType::Fatal, __VA_ARGS__)
+#define OC_TAG_FATAL(TAG, ...) ::OC::FLogger::Write(TAG,    ::OC::FLogger::ELogType::Fatal, __VA_ARGS__)
+#define OC_GAME_FATAL(...)     ::OC::FLogger::Write("GAME", ::OC::FLogger::ELogType::Fatal, __VA_ARGS__)
+#else
+#define OC_CORE_FATAL(...)     // Ignore from build.
+#define OC_TAG_FATAL(TAG, ...) // Ignore from build.
+#define OC_GAME_FATAL(...)     // Ignore from build.
+#endif // OC_ENABLE_FATAL_LOGS
+
+#pragma region Math Utilities
 
 /**
  * The most common math constants.
@@ -269,21 +687,8 @@ public:
 	static double Sqrt(double X);
 };
 
-#if OC_IMPLEMENTATION
-
-#include <cmath>
-
-float FMath::Sqrt(float X)
-{
-	return sqrtf(X);
-}
-
-double FMath::Sqrt(double X)
-{
-	return sqrt(X);
-}
-
-#endif
+// Math Utilities
+#pragma endregion
 
 namespace OC
 {
@@ -330,10 +735,10 @@ public:
 	static constexpr TVector2<T> One() { return TVector2<T>(T(1.0), T(1.0)); }
 
 	/** @return A vector with the components (1, 0). */
-	static constexpr TVector2<T> AxisX() { return TVector2<T>(T(1.0), T(0.0)); }
+	static constexpr TVector2<T> UnitX() { return TVector2<T>(T(1.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 1). */
-	static constexpr TVector2<T> AxisY() { return TVector2<T>(T(0.0), T(1.0)); }
+	static constexpr TVector2<T> UnitY() { return TVector2<T>(T(0.0), T(1.0)); }
 
 public:
 	/**
@@ -601,13 +1006,13 @@ public:
 	static constexpr TVector3<T> Down() { return TVector3<T>(T(0.0), T(0.0), T(-1.0)); }
 
 	/** @return A vector with the components (1, 0, 0). */
-	static constexpr TVector3<T> AxisX() { return TVector3<T>(T(1.0), T(0.0), T(0.0)); }
+	static constexpr TVector3<T> UnitX() { return TVector3<T>(T(1.0), T(0.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 1, 0). */
-	static constexpr TVector3<T> AxisY() { return TVector3<T>(T(1.0), T(1.0), T(0.0)); }
+	static constexpr TVector3<T> UnitY() { return TVector3<T>(T(1.0), T(1.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 0, 1). */
-	static constexpr TVector3<T> AxisZ() { return TVector3<T>(T(1.0), T(0.0), T(1.0)); }
+	static constexpr TVector3<T> UnitZ() { return TVector3<T>(T(1.0), T(0.0), T(1.0)); }
 
 public:
 	/**
@@ -907,16 +1312,16 @@ public:
 	static constexpr TVector4<T> One() { return TVector4<T>(T(1.0), T(1.0), T(1.0), T(1.0)); }
 
 	/** @return A vector with the components (1, 0, 0, 0). */
-	static constexpr TVector4<T> AxisX() { return TVector4<T>(T(1.0), T(0.0), T(0.0), T(0.0)); }
+	static constexpr TVector4<T> UnitX() { return TVector4<T>(T(1.0), T(0.0), T(0.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 1, 0, 0). */
-	static constexpr TVector4<T> AxisY() { return TVector4<T>(T(0.0), T(1.0), T(0.0), T(0.0)); }
+	static constexpr TVector4<T> UnitY() { return TVector4<T>(T(0.0), T(1.0), T(0.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 0, 1, 0). */
-	static constexpr TVector4<T> AxisZ() { return TVector4<T>(T(0.0), T(0.0), T(1.0), T(0.0)); }
+	static constexpr TVector4<T> UnitZ() { return TVector4<T>(T(0.0), T(0.0), T(1.0), T(0.0)); }
 
 	/** @return A vector with the components (0, 0, 0, 1). */
-	static constexpr TVector4<T> AxisW() { return TVector4<T>(T(0.0), T(0.0), T(0.0), T(1.0)); }
+	static constexpr TVector4<T> UnitW() { return TVector4<T>(T(0.0), T(0.0), T(0.0), T(1.0)); }
 
 public:
 	/**
@@ -1612,4 +2017,405 @@ OC_INLINE TVector4<T> operator*(T Scalar, const TVector4<T>& Vector)
 // TVector4 Definition
 #pragma endregion
 
+} // namespace OC
+
+#if OC_IMPLEMENTATION
+
+#include <cstdlib>
+#include <cmath>
+#include <cstdio>
+
+#if OC_PLATFORM_WINDOWS
+	#include <Windows.h>
+#endif // OC_PLATFORM_WINDOWS
+
+namespace OC
+{
+
+void OnCheckFailed(const char* Expression, const char* File, const char* Function, uint32 Line, const char* Message)
+{
+	constexpr SizeT BufferSize = 512;
+
+	const char Title[] = "CHECK FAILED";
+	SizeT TitleLength = sizeof(Title) / sizeof(char) - 1;
+
+	static char ExprString[BufferSize] = {};
+	SizeT ExprStringLength = (SizeT)sprintf_s(ExprString, "EXPRESSION: %s", Expression);
+
+	static char MesgString[BufferSize] = {};
+	SizeT MesgStringLength = 0;
+	if (Message)
+	{
+		MesgStringLength = (SizeT)sprintf_s(MesgString, "MESSAGE:    %s", Message);
+	}
+
+	static char FileString[BufferSize] = {};
+	SizeT FileStringLength = (SizeT)sprintf_s(FileString, "FILE:       %s", File);
+
+	static char FuncString[BufferSize] = {};
+	SizeT FuncStringLength = (SizeT)sprintf_s(FuncString, "FUNCTION:   %s", Function);
+
+	static char LineString[BufferSize] = {};
+	SizeT LineStringLength = (SizeT)sprintf_s(LineString, "LINE:       %u", Line);
+
+	SizeT MaxWidth = TitleLength + 2;
+	MaxWidth = FMath::Max(MaxWidth, ExprStringLength);
+	MaxWidth = FMath::Max(MaxWidth, MesgStringLength);
+	MaxWidth = FMath::Max(MaxWidth, FileStringLength);
+	MaxWidth = FMath::Max(MaxWidth, FuncStringLength);
+	MaxWidth = FMath::Max(MaxWidth, LineStringLength);
+
+	{
+		SizeT HeaderLength = MaxWidth - (TitleLength + 2);
+		SizeT HeaderPreOffset  = HeaderLength % 2;
+		SizeT HeaderPostOffset = 0;
+
+		char HeaderBuffer[BufferSize] = {};
+		FMemory::Set(HeaderBuffer, '-', (HeaderLength / 2 + HeaderLength % 2) * sizeof(char));
+
+		OC_CORE_FATAL("+-%s %s %s-+", HeaderBuffer + HeaderPreOffset, Title, HeaderBuffer + HeaderPostOffset);
+	}
+	{
+		char WhitespaceBuffer[BufferSize] = {};
+		FMemory::Set(WhitespaceBuffer, ' ', (MaxWidth - ExprStringLength) * sizeof(char));
+		OC_CORE_FATAL("| %s%s |", ExprString, WhitespaceBuffer);
+	}
+
+	if (Message)
+	{
+		char WhitespaceBuffer[BufferSize] = {};
+		FMemory::Set(WhitespaceBuffer, ' ', (MaxWidth - MesgStringLength) * sizeof(char));
+		OC_CORE_FATAL("| %s%s |", MesgString, WhitespaceBuffer);
+	}
+
+	{
+		char WhitespaceBuffer[BufferSize] = {};
+		FMemory::Set(WhitespaceBuffer, ' ', (MaxWidth - FileStringLength) * sizeof(char));
+		OC_CORE_FATAL("| %s%s |", FileString, WhitespaceBuffer);
+	}
+	{
+		char WhitespaceBuffer[BufferSize] = {};
+		FMemory::Set(WhitespaceBuffer, ' ', (MaxWidth - FuncStringLength) * sizeof(char));
+		OC_CORE_FATAL("| %s%s |", FuncString, WhitespaceBuffer);
+	}
+	{
+		char WhitespaceBuffer[BufferSize] = {};
+		FMemory::Set(WhitespaceBuffer, ' ', (MaxWidth - LineStringLength) * sizeof(char));
+		OC_CORE_FATAL("| %s%s |", LineString, WhitespaceBuffer);
+	}
+	{
+		char FooterBuffer[BufferSize] = {};
+		FMemory::Set(FooterBuffer, '-', MaxWidth * sizeof(char));
+		OC_CORE_FATAL("+-%s-+\n", FooterBuffer);
+	}
 }
+
+} // namespace OC
+
+#pragma region Platform Windows Implementation
+
+namespace OC
+{
+
+struct FWindowsPlatformData
+{
+#if OC_PLATFORM_WINDOWS
+	HANDLE ConsoleHandle = INVALID_HANDLE_VALUE;
+
+	// These have dummy initialization values.
+	FPlatform::EConsoleColor ConsoleTextColor       = FPlatform::EConsoleColor::Purple;
+	FPlatform::EConsoleColor ConsoleBackgroundColor = FPlatform::EConsoleColor::Purple;
+#endif // OC_PLATFORM_WINDOWS
+};
+static FWindowsPlatformData* PlatformData = nullptr;
+
+bool FPlatform::Initialize()
+{
+	if (PlatformData)
+	{
+		return false;
+	}
+
+#if OC_PLATFORM_WINDOWS
+	PlatformData = (FWindowsPlatformData*)malloc(sizeof(FWindowsPlatformData));
+	new (PlatformData) FWindowsPlatformData();
+
+	PlatformData->ConsoleHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+	SetConsoleColor(EConsoleColor::White, EConsoleColor::Black);
+
+	return true;
+#endif // OC_PLATFORM_WINDOWS
+}
+
+void FPlatform::Shutdown()
+{
+	if (!PlatformData)
+	{
+		return;
+	}
+
+#if OC_PLATFORM_WINDOWS
+	SetConsoleColor(EConsoleColor::White, EConsoleColor::Black);
+#endif // OC_PLATFORM_WINDOWS
+
+	(*PlatformData).~FWindowsPlatformData();
+	free(PlatformData);
+	PlatformData = nullptr;
+}
+
+void* FPlatform::AllocMemory(SizeT BlockSize)
+{
+#if OC_PLATFORM_WINDOWS
+	return malloc((size_t)BlockSize);
+#endif // OC_PLATFORM_WINDOWS
+}
+
+void FPlatform::FreeMemory(void* MemoryBlock)
+{
+#if OC_PLATFORM_WINDOWS
+	free(MemoryBlock);
+#endif // OC_PLATFORM_WINDOWS
+}
+
+bool FPlatform::SetConsoleColor(EConsoleColor TextColor, EConsoleColor BackgroundColor)
+{
+#if OC_PLATFORM_WINDOWS
+	if (!PlatformData || PlatformData->ConsoleHandle == INVALID_HANDLE_VALUE)
+	{
+		return false;
+	}
+	if (TextColor == PlatformData->ConsoleTextColor && BackgroundColor == PlatformData->ConsoleBackgroundColor)
+	{
+		return true;
+	}
+
+	WORD Attributes = (WORD)(TextColor) | ((WORD)(BackgroundColor) << 4);
+	BOOL Result = SetConsoleTextAttribute(PlatformData->ConsoleHandle, Attributes);
+	return true;
+#endif // OC_PLATFORM_WINDOWS
+}
+
+bool FPlatform::WriteToConsole(const char* Message, SizeT MessageSize)
+{
+#if OC_PLATFORM_WINDOWS
+	if (!PlatformData)
+	{
+		// The platform was not initialized.
+		return false;
+	}
+
+	BOOL Result = WriteConsoleA(PlatformData->ConsoleHandle, Message, (DWORD)MessageSize, NULL, NULL);
+	return true;
+#endif // OC_PLATFORM_WINDOWS
+}
+
+} // namespace OC
+
+// Platform Windows Implementation
+#pragma endregion
+
+#pragma region Memory Implementation
+
+bool FMemory::Initialize()
+{
+	return true;
+}
+
+void FMemory::Shutdown()
+{
+
+}
+
+OC_NODISCARD void* FMemory::AllocateRaw(SizeT BlockSize)
+{
+	if (BlockSize == 0)
+	{
+		return nullptr;
+	}
+	return OC::FPlatform::AllocMemory(BlockSize);
+}
+
+OC_NODISCARD void* FMemory::Allocate(SizeT BlockSize)
+{
+	if (BlockSize == 0)
+	{
+		return nullptr;
+	}
+
+	return FMemory::AllocateRaw(BlockSize);
+}
+
+OC_NODISCARD void* FMemory::AllocateTagged(SizeT BlockSize)
+{
+	if (BlockSize == 0)
+	{
+		return nullptr;
+	}
+
+	return FMemory::AllocateRaw(BlockSize);
+}
+
+void FMemory::FreeRaw(void* MemoryBlock)
+{
+	OC::FPlatform::FreeMemory(MemoryBlock);
+}
+
+void FMemory::Free(void* MemoryBlock)
+{
+	if (MemoryBlock == nullptr)
+	{
+		return;
+	}
+
+	FMemory::FreeRaw(MemoryBlock);
+}
+
+void FMemory::Copy(void* Destination, const void* Source, SizeT Size)
+{
+	memcpy(Destination, Source, (size_t)Size);
+}
+
+void FMemory::Set(void* Destination, uint8 Value, SizeT Size)
+{
+	memset(Destination, (int)Value, (size_t)Size);
+}
+
+void FMemory::Zero(void* Destination, SizeT Size)
+{
+	FMemory::Set(Destination, 0, Size);
+}
+
+// Memory Implementation
+#pragma endregion
+
+#pragma region Logger Implementation
+
+namespace OC
+{
+
+constexpr FPlatform::EConsoleColor ConsoleColors[2 * 6] =
+{
+	/**           Text Color                         Background Color            */
+	FPlatform::EConsoleColor::Purple,     FPlatform::EConsoleColor::Black, // Debug
+	FPlatform::EConsoleColor::Gray,       FPlatform::EConsoleColor::Black, // Trace
+	FPlatform::EConsoleColor::Green,      FPlatform::EConsoleColor::Black, // Info
+	FPlatform::EConsoleColor::LightRed,   FPlatform::EConsoleColor::Black, // Error
+	FPlatform::EConsoleColor::Yellow,     FPlatform::EConsoleColor::Black, // Warn
+	FPlatform::EConsoleColor::LightWhite, FPlatform::EConsoleColor::Red    // Fatal
+};
+
+constexpr const char* LogTypesNames[6] =
+{
+	"DEBUG", "TRACE", "INFO", "WARN", "ERROR", "FATAL"
+};
+
+void FLogger::Write(const char* Tag, ELogType LogType, const char* Message, ...)
+{
+	auto TextColor       = ConsoleColors[2 * (uint8)LogType + 0];
+	auto BackgroundColor = ConsoleColors[2 * (uint8)LogType + 1];
+
+	static char buffer[8192] = {};
+	FMemory::Zero(buffer, sizeof(buffer));
+
+	va_list vl;
+	va_start(vl, Message);
+	vsprintf_s(buffer, Message, vl);
+	va_end(vl);
+
+	static char buffer2[8192] = {};
+	FMemory::Zero(buffer2, sizeof(buffer2));
+	int Written = sprintf_s(buffer2, "[%s][%s]: %s\n", LogTypesNames[(uint8)LogType], Tag, buffer);
+
+	FPlatform::SetConsoleColor(TextColor, BackgroundColor);
+	FPlatform::WriteToConsole(buffer2, (SizeT)Written);
+}
+
+} // namespace OC
+
+// Logger Implementation
+#pragma endregion
+
+#pragma region Math Utilities Implementation
+
+float FMath::Sqrt(float X)
+{
+	return sqrtf(X);
+}
+
+double FMath::Sqrt(double X)
+{
+	return sqrt(X);
+}
+
+// Math Utilities Implementation
+#pragma endregion
+
+#pragma region Application Entry Point
+
+bool OnCreate();
+
+void OnUpdate(float DeltaTime);
+
+void OnDestroy();
+
+namespace OC
+{
+
+static bool InitializeCore()
+{
+	if (!FPlatform::Initialize())
+	{
+		return false;
+	}
+
+	if (!FMemory::Initialize())
+	{
+		FPlatform::Shutdown();
+		return false;
+	}
+
+	return true;
+}
+
+static void ShutdownCore()
+{
+	FMemory::Shutdown();
+	FPlatform::Shutdown();
+}
+
+static int32 Main(char** ArgValues, uint32 ArgsCount)
+{
+	// Initialize the core systems.
+	Verify(InitializeCore());
+
+	if (!OnCreate())
+	{
+		return -1;
+	}
+
+	bool IsRunning = true;
+	while (IsRunning)
+	{
+		float DeltaTime = 0.0f;
+		OnUpdate(DeltaTime);
+	}
+	IsRunning = false;
+
+	OnDestroy();
+
+	// Shutdown the core systems.
+	ShutdownCore();
+	return 0;
+}
+
+} // namespace OC
+
+int main(int ArgsCount, char** ArgValues)
+{
+	return OC::Main(ArgValues, ArgsCount);
+}
+
+// Application Entry Point
+#pragma endregion
+
+#endif // OC_IMPLEMENTATION
