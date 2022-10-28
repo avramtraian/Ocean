@@ -5,7 +5,7 @@ IF NOT EXIST "Bin\" ( MKDIR "Bin" )
 
 SET CompilerFlags=-g
 SET IncludeFlags=
-SET LinkerFlags=-luser32.lib
+SET LinkerFlags=-luser32.lib -lopengl32.lib -lgdi32.lib
 SET Defines=
 
 @ECHO Compiling...

@@ -95,6 +95,12 @@
     #error Unknown or unsupported compiler! Ocean can only be compiled with MSVC, Clang or GCC.
 #endif
 
+#if OC_COMPILER_MSVC
+    #define OC_DEBUGBREAK __debugbreak()
+#elif OC_COMPILER_CLANG_GCC
+    #define OC_DEBUGBREAK __builtin_trap()
+#endif
+
 #define OC_CONFIGURATION_ALREADY_DEFINED            0
 
 #ifdef OC_DEBUG
@@ -133,17 +139,12 @@
 
 #include <stdint.h>
 #include <string.h>
-#include <stdlib.h>
-
-#if OC_PLATFORM_WINDOWS
-#include <Windows.h>
-#endif // OC_PLATFORM_WINDOWS
 
 #define internal    static
 #define persistent  static
 
-#define true    (1)
-#define false   (0)
+#define true        (1)
+#define false       (0)
 
 typedef int8_t      s8;
 typedef int16_t     s16;
@@ -161,17 +162,26 @@ typedef double      r64;
 typedef int8_t      b8;
 typedef int32_t     b32;
 
+#define Assert(CONDITION) if (!(CONDITION)) { OC_DEBUGBREAK; }
+
+#define Kilobytes(X) (X * 1024ULL)
+#define Megabytes(X) (Kilobytes(X) * 1024ULL)
+#define Gigabytes(X) (Megabytes(X) * 1024ULL)
+
+#define ArrayCount(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
 #define SetStringToBuffer(STRING, BUFFER) MemoryCopy(BUFFER, STRING, sizeof(STRING))
 
 void MemoryCopy(void* Destination, const void* Source, u64 Size);
+void MemorySet(void* Destination, u8 Value, u64 Size);
+void MemoryZero(void* Destination, u64 Size);
 
 typedef struct game_create_data
 {
-    char WindowTitle[256];
-    u32 WindowWidth;
-    u32 WindowHeight;
-    s32 WindowPositionX;
-    s32 WindowPositionY;
+    char    WindowTitle[256];
+    u32     WindowWidth;
+    u32     WindowHeight;
+    s32     WindowPositionX;
+    s32     WindowPositionY;
 } game_create_data;
 
 void OnCreate(game_create_data* GameCreateData);
@@ -182,13 +192,26 @@ void OnDestroy();
 
 #if OC_IMPLEMENTATION
 
-#define Kilobytes(X) (X * 1024ULL)
-#define Megabytes(X) (Kilobytes(X) * 1024ULL)
-#define Gigabytes(X) (Megabytes(X) * 1024ULL)
+#include <stdlib.h>
+
+#if OC_PLATFORM_WINDOWS
+#include <Windows.h>
+#include <GL/gl.h>
+#endif // OC_PLATFORM_WINDOWS
 
 void MemoryCopy(void* Destination, const void* Source, u64 Size)
 {
     memcpy(Destination, Source, (size_t)Size);
+}
+
+void MemorySet(void* Destination, u8 Value, u64 Size)
+{
+    memset(Destination, (int)Value, Size);
+}
+
+void MemoryZero(void* Destination, u64 Size)
+{
+    MemorySet(Destination, 0, Size);
 }
 
 typedef struct linear_memory_arena
@@ -202,18 +225,18 @@ internal b8 CreateLinearMemoryArena(linear_memory_arena** MemoryArena, u64 Arena
 {
     if (MemoryArena == NULL)
     {
-        return (false);
+        return false;
     }
     if (ArenaSize == 0)
     {
-        return (false);
+        return false;
     }
 
     u64 MemoryRequirement = sizeof(linear_memory_arena) + ArenaSize;
     void* Memory = malloc(MemoryRequirement);
     if (Memory == NULL)
     {
-        return (false);
+        return false;
     }
 
     *MemoryArena = (linear_memory_arena*)Memory;
@@ -223,7 +246,7 @@ internal b8 CreateLinearMemoryArena(linear_memory_arena** MemoryArena, u64 Arena
     Arena->AllocatedOffset = 0;
     Arena->BlockSize = ArenaSize;
 
-    return (true);
+    return true;
 }
 
 internal void DestroyLinearMemoryArena(linear_memory_arena** MemoryArena)
@@ -241,22 +264,22 @@ internal void* AllocateLinearMemoryArena(linear_memory_arena* MemoryArena, u64 B
 {
     if (MemoryArena == NULL)
     {
-        return (NULL);
+        return NULL;
     }
     if (BlockSize == 0)
     {
-        return (NULL);
+        return NULL;
     }
 
     if (MemoryArena->AllocatedOffset + BlockSize > MemoryArena->BlockSize)
     {
-        // TODO(Avr): Logging.
-        return (NULL);
+        // TODO(Traian): Logging.
+        return NULL;
     }
 
     void* Memory = ((u8*)MemoryArena->BaseAddress) + MemoryArena->AllocatedOffset;
     MemoryArena->AllocatedOffset += BlockSize;
-    return (Memory);
+    return Memory;
 }
 
 internal void ResetLinearMemoryArena(linear_memory_arena* MemoryArena)
@@ -267,6 +290,93 @@ internal void ResetLinearMemoryArena(linear_memory_arena* MemoryArena)
     }
 
     MemoryArena->AllocatedOffset = 0;
+}
+
+typedef struct system_time
+{
+    u16 Year;
+    u8  Month;
+    u8  DayOfWeek;
+    u8  Day;
+    u8  Hour;
+    u8  Minute;
+    u8  Second;
+    u16 Millisecond;
+} system_time;
+
+internal void PlatformGetSystemTime(system_time* SystemTime)
+{
+    SYSTEMTIME SysTime;
+    GetSystemTime(&SysTime);
+
+    SystemTime->Year = SysTime.wYear;
+    SystemTime->Month = SysTime.wMonth;
+    SystemTime->DayOfWeek = SysTime.wDayOfWeek;
+    SystemTime->Day = SysTime.wDay;
+    SystemTime->Hour = SysTime.wHour;
+    SystemTime->Minute = SysTime.wMinute;
+    SystemTime->Second = SysTime.wSecond;
+    SystemTime->Millisecond = SysTime.wMilliseconds;
+}
+
+internal u64 PlatformGetTimeNano()
+{
+#if OC_PLATFORM_WINDOWS
+    LARGE_INTEGER PC;
+    QueryPerformanceCounter(&PC);
+    u64 PerformanceCounter = PC.QuadPart;
+
+    LARGE_INTEGER PF;
+    QueryPerformanceFrequency(&PF);
+    u64 PerformanceFrequency = PF.QuadPart;
+
+    return (u64)(((r64)(PerformanceCounter) * 1e9) / (r64)(PerformanceFrequency));
+#endif
+}
+
+internal u64 PlatformGetTimeMicro()
+{
+#if OC_PLATFORM_WINDOWS
+    LARGE_INTEGER PC;
+    QueryPerformanceCounter(&PC);
+    u64 PerformanceCounter = PC.QuadPart;
+
+    LARGE_INTEGER PF;
+    QueryPerformanceFrequency(&PF);
+    u64 PerformanceFrequency = PF.QuadPart;
+
+    return (u64)(((r64)(PerformanceCounter) * 1e6) / (r64)(PerformanceFrequency));
+#endif
+}
+
+internal u64 PlatformGetTimeMilli()
+{
+#if OC_PLATFORM_WINDOWS
+    LARGE_INTEGER PC;
+    QueryPerformanceCounter(&PC);
+    u64 PerformanceCounter = PC.QuadPart;
+
+    LARGE_INTEGER PF;
+    QueryPerformanceFrequency(&PF);
+    u64 PerformanceFrequency = PF.QuadPart;
+
+    return (PerformanceCounter * 1000) / PerformanceFrequency;
+#endif
+}
+
+internal u64 PlatformGetTimeSeconds()
+{
+#if OC_PLATFORM_WINDOWS
+    LARGE_INTEGER PC;
+    QueryPerformanceCounter(&PC);
+    u64 PerformanceCounter = PC.QuadPart;
+
+    LARGE_INTEGER PF;
+    QueryPerformanceFrequency(&PF);
+    u64 PerformanceFrequency = PF.QuadPart;
+
+    return PerformanceCounter / PerformanceFrequency;
+#endif
 }
 
 typedef struct window_data
@@ -294,7 +404,7 @@ internal LRESULT OceanWindowProcedure(HWND WindowHandle, UINT Message, WPARAM WP
         {
             GameData->bIsRunning = false;
         }
-        return (0);
+        return 0;
     }
 
     return DefWindowProc(WindowHandle, Message, WParam, LParam);
@@ -304,7 +414,7 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
 {
     if (GameCreateData == NULL || MemoryArena == NULL)
     {
-        return (NULL);
+        return NULL;
     }
 
 #if OC_PLATFORM_WINDOWS
@@ -316,8 +426,8 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
     WindowClass.lpszClassName = "OceanWindowClass";
     if (!RegisterClassA(&WindowClass))
     {
-        // TODO(Avr): Logging.
-        return (NULL);
+        // TODO(Traian): Logging.
+        return NULL;
     }
 
     HWND WindowHandle = CreateWindowA(
@@ -331,8 +441,8 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
 
     if (WindowHandle == NULL)
     {
-        // TODO(Avr): Logging.
-        return (NULL);
+        // TODO(Traian): Logging.
+        return NULL;
     }
 
     window_data* WindowData = (window_data*)AllocateLinearMemoryArena(MemoryArena, sizeof(window_data));
@@ -345,7 +455,8 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
     WindowData->PositionY = GameCreateData->WindowPositionY;
 
     ShowWindow(WindowHandle, SW_SHOW);
-    return (WindowData);
+
+    return WindowData;
 #endif // OC_PLATFORM_WINDOWS
 }
 
@@ -357,6 +468,73 @@ internal void PumpWindowMessages(window_data* WindowData)
         TranslateMessage(&Message);
         DispatchMessageA(&Message);
     }
+}
+
+typedef char GLchar;
+typedef ptrdiff_t GLsizeiptr;
+
+#define OC_DECLARE_OPENGL_FUNCTION(NAME, RETURN, ...)   \
+    typedef RETURN(*PFN##NAME)(__VA_ARGS__);            \
+    internal PFN##NAME NAME;
+
+#define OC_LOAD_OPENGL_FUNCTION(NAME)                   \
+    NAME = (PFN##NAME)wglGetProcAddress(#NAME);         \
+    if (NAME == NULL)                                   \
+    {                                                   \
+        return false;                                   \
+    }
+
+#if OC_PLATFORM_WINDOWS
+OC_DECLARE_OPENGL_FUNCTION(wglSwapIntervalEXT, BOOL, int)
+#endif // OC_PLATFORM_WINDOWS
+
+OC_DECLARE_OPENGL_FUNCTION(glGenBuffers,                void, GLsizei, GLuint*)
+OC_DECLARE_OPENGL_FUNCTION(glBindBuffer,                void, GLenum, GLuint)
+OC_DECLARE_OPENGL_FUNCTION(glBufferData,                void, GLenum, GLsizeiptr, const void*, GLenum)
+OC_DECLARE_OPENGL_FUNCTION(glEnableVertexAttribArray,   void, GLuint)
+OC_DECLARE_OPENGL_FUNCTION(glVertexAttribPointer,       void, GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)
+
+#define GL_ARRAY_BUFFER 0x8892
+#define GL_STATIC_DRAW  0x88E4
+
+internal b8 InitializeOpenGL(window_data* WindowData)
+{
+#if OC_PLATFORM_WINDOWS
+
+    HDC WindowDC = GetDC((HWND)WindowData->Handle);
+
+    PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
+    DesiredPixelFormat.nSize = sizeof(PIXELFORMATDESCRIPTOR);
+    DesiredPixelFormat.nVersion = 1;
+    DesiredPixelFormat.dwFlags = PFD_SUPPORT_OPENGL | PFD_DRAW_TO_WINDOW | PFD_DOUBLEBUFFER;
+    DesiredPixelFormat.iPixelType = PFD_TYPE_RGBA;
+    DesiredPixelFormat.cColorBits = 32;
+    DesiredPixelFormat.cAlphaBits = 8;
+    DesiredPixelFormat.cDepthBits = 24;
+    DesiredPixelFormat.cStencilBits = 8;
+    DesiredPixelFormat.iLayerType = PFD_MAIN_PLANE;
+
+    int SuggestedPixelFormatIndex = ChoosePixelFormat(WindowDC, &DesiredPixelFormat);
+
+    PIXELFORMATDESCRIPTOR SuggestedPixelFormat = {};
+    DescribePixelFormat(WindowDC, SuggestedPixelFormatIndex, sizeof(PIXELFORMATDESCRIPTOR), &SuggestedPixelFormat);
+
+    SetPixelFormat(WindowDC, SuggestedPixelFormatIndex, &SuggestedPixelFormat);
+
+    HGLRC OpenGLContext = wglCreateContext(WindowDC);
+    wglMakeCurrent(WindowDC, OpenGLContext);
+
+    OC_LOAD_OPENGL_FUNCTION(wglSwapIntervalEXT);
+    OC_LOAD_OPENGL_FUNCTION(glGenBuffers);
+    OC_LOAD_OPENGL_FUNCTION(glBindBuffer);
+    OC_LOAD_OPENGL_FUNCTION(glBufferData);
+    OC_LOAD_OPENGL_FUNCTION(glEnableVertexAttribArray);
+    OC_LOAD_OPENGL_FUNCTION(glVertexAttribPointer);
+
+    wglSwapIntervalEXT(1);
+    return true;
+
+#endif // OC_PLATFORM_WINDOWS
 }
 
 internal s32 GuardedMain(char** CommandLineArguments, u16 CommandLineArgumentsCount)
@@ -373,28 +551,60 @@ internal s32 GuardedMain(char** CommandLineArguments, u16 CommandLineArgumentsCo
     window_data* WindowData = CreateGameWindow(&GameCreateData, CoreSystemsMemoryArena);
     if (WindowData == NULL)
     {
-        // TODO(Avr): Logging.
+        // TODO(Traian): Logging.
         return -1;
     }
 
+    if (!InitializeOpenGL(WindowData))
+    {
+        // TODO(Traian): Logging.
+        return -2;
+    }
+
+    float Positions[] = {
+        -0.5F, -0.5F,
+         0.0F,  0.5F,
+         0.5F, -0.5F
+    };
+
+    u32 Buffer;
+    glGenBuffers(1, &Buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, Buffer);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(Positions), Positions, GL_STATIC_DRAW);
+
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0);
+
+    glViewport(0, 0, WindowData->Width, WindowData->Height);
+    glClearColor(0.9F, 0.8F, 0.2F, 1.0F);
+
+    u64 LastTime = PlatformGetTimeMicro();
     GameData->bIsRunning = true;
     while (GameData->bIsRunning)
     {
         PumpWindowMessages(WindowData);
         
-        float DeltaTime = 0.0F;
-        OnUpdate(DeltaTime);
+        u64 CurrentTime = PlatformGetTimeMicro();
+        u64 DeltaTime = CurrentTime - LastTime;
+        LastTime = CurrentTime;
+
+        OnUpdate((r32)(DeltaTime * 1e-3));
+
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        glDrawArrays(GL_TRIANGLES, 0, 3);
+
+        SwapBuffers(GetDC((HWND)WindowData->Handle));
     }
 
     OnDestroy();
-    return (0);
+    return 0;
 }
 
 #if OC_PLATFORM_WINDOWS
-
 int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int ShowCommand)
 {
-    return (GuardedMain(__argv, __argc));
+    return (int)(GuardedMain(__argv, __argc));
 }
 #endif // OC_PLATFORM_WINDOWS
 
