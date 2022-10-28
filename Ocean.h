@@ -155,8 +155,8 @@ typedef uint16_t    u16;
 typedef uint32_t    u32;
 typedef uint64_t    u64;
 
-typedef float       f32;
-typedef double      f64;
+typedef float       r32;
+typedef double      r64;
 
 typedef int8_t      b8;
 typedef int32_t     b32;
@@ -311,7 +311,7 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
     HINSTANCE Instance = GetModuleHandle(NULL);
 
     WNDCLASSA WindowClass = {};
-    WindowClass.lpfnWndProc = DefWindowProc;
+    WindowClass.lpfnWndProc = OceanWindowProcedure;
     WindowClass.hInstance = Instance;
     WindowClass.lpszClassName = "OceanWindowClass";
     if (!RegisterClassA(&WindowClass))
