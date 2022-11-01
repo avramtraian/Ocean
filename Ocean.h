@@ -96,9 +96,11 @@
 #endif
 
 #if OC_COMPILER_MSVC
-    #define OC_DEBUGBREAK __debugbreak()
+    #define OC_DEBUGBREAK   __debugbreak()
+    #define OC_INLINE       __forceinline
 #elif OC_COMPILER_CLANG_GCC
-    #define OC_DEBUGBREAK __builtin_trap()
+    #define OC_DEBUGBREAK   __builtin_trap()
+    #define OC_INLINE       inline
 #endif
 
 #define OC_CONFIGURATION_ALREADY_DEFINED            0
@@ -140,115 +142,160 @@
 #include <stdint.h>
 #include <string.h>
 
-#define internal    static
-#define persistent  static
+#define internal        static
+#define persistent      static
 
-#define true        (1)
-#define false       (0)
+typedef int8_t      int8;
+typedef int16_t     int16;
+typedef int32_t     int32;
+typedef int64_t     int64;
 
-typedef int8_t      s8;
-typedef int16_t     s16;
-typedef int32_t     s32;
-typedef int64_t     s64;
+typedef uint8_t     uint8;
+typedef uint16_t    uint16;
+typedef uint32_t    uint32;
+typedef uint64_t    uint64;
 
-typedef uint8_t     u8;
-typedef uint16_t    u16;
-typedef uint32_t    u32;
-typedef uint64_t    u64;
+typedef float       float32;
+typedef double      float64;
 
-typedef float       r32;
-typedef double      r64;
-
-typedef int8_t      b8;
-typedef int32_t     b32;
+typedef int8_t      bool8;
+typedef int32_t     bool32;
 
 #define Assert(CONDITION) if (!(CONDITION)) { OC_DEBUGBREAK; }
+#define InvalidCodePath OC_DEBUGBREAK
+
+inline uint32 SafeTruncateU64ToU32(uint64 Value)
+{
+    Assert(Value <= 0xFFFFFFFF);
+    uint32 Result = (uint64)(Value);
+    return Result;
+}
+
+inline uint16 SafeTruncateU64ToU16(uint64 Value)
+{
+    Assert(Value <= 0xFFFF);
+    uint16 Result = (uint16)(Value);
+    return Result;
+}
+
+inline uint8 SafeTruncateU64ToU8(uint64 Value)
+{
+    Assert(Value <= 0xFF);
+    uint8 Result = (uint8)(Value);
+    return Result;
+}
 
 #define Kilobytes(X) (X * 1024ULL)
 #define Megabytes(X) (Kilobytes(X) * 1024ULL)
 #define Gigabytes(X) (Megabytes(X) * 1024ULL)
 
-#define ArrayCount(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
-#define SetStringToBuffer(STRING, BUFFER) MemoryCopy(BUFFER, STRING, sizeof(STRING))
 #define Bit(X) (1 << (X))
+#define ArrayCount(ARRAY) (sizeof(ARRAY) / sizeof(ARRAY[0]))
+#define CopyStringToBuffer(STRING, BUFFER) MemoryCopy(BUFFER, STRING, sizeof(STRING))
 
-void MemoryCopy(void* Destination, const void* Source, u64 Size);
-void MemorySet(void* Destination, u8 Value, u64 Size);
-void MemoryZero(void* Destination, u64 Size);
+void MemoryCopy(void* Destination, const void* Source, uint64 Size);
+void MemorySet(void* Destination, uint8 Value, uint64 Size);
+void MemoryZero(void* Destination, uint64 Size);
 
-typedef struct v2
+struct FVec2
 {
-    r32 X;
-    r32 Y;
-}
-v2;
+    float32 X, Y;
+};
 
-typedef struct v3
+struct FVec3
 {
-    r32 X;
-    r32 Y;
-    r32 Z;
-}
-v3;
+    float32 X, Y, Z;
+};
 
-typedef struct v4
+struct FVec4
 {
-    r32 X;
-    r32 Y;
-    r32 Z;
-    r32 W;
-}
-v4;
+    float32 X, Y, Z, W;
+};
 
-typedef struct game_create_data
+OC_INLINE FVec2 operator+(const FVec2& A, const FVec2& B)
+{
+    FVec2 Result = {};
+    Result.X = A.X + B.X;
+    Result.Y = A.Y + B.Y;
+    return Result;
+}
+
+OC_INLINE FVec2 operator-(const FVec2& A, const FVec2& B)
+{
+    FVec2 Result = {};
+    Result.X = A.X - B.X;
+    Result.Y = A.Y - B.Y;
+    return Result;
+}
+
+OC_INLINE FVec2 operator*(const FVec2& V, float32 Scalar)
+{
+    FVec2 Result = {};
+    Result.X = V.X * Scalar;
+    Result.Y = V.Y * Scalar;
+    return Result;
+}
+
+OC_INLINE FVec2 operator*(float32 Scalar, const FVec2& V)
+{
+    FVec2 Result = {};
+    Result.X = V.X * Scalar;
+    Result.Y = V.Y * Scalar;
+    return Result;
+}
+
+struct FGameCreateData
 {
     char    WindowTitle[256];
-    u32     WindowWidth;
-    u32     WindowHeight;
-    s32     WindowPositionX;
-    s32     WindowPositionY;
-}
-game_create_data;
+    uint32  WindowWidth;
+    uint32  WindowHeight;
+    int32   WindowPositionX;
+    int32   WindowPositionY;
+};
 
-void OnCreate(game_create_data* GameCreateData);
+void OnCreate(FGameCreateData* GameCreateData);
 
 void OnUpdate(float DeltaTime);
 
 void OnDestroy();
 
+void SetBackgroundColor(FVec4 Color);
+void DrawRect(int32 X, int32 Y, int32 Width, int32 Height, int32 Thickness, FVec4 Color);
+void DrawFilledRect(int32 X, int32 Y, int32 Width, int32 Height, FVec4 Color);
+
+#define OC_IMPLEMENTATION 1
 #if OC_IMPLEMENTATION
 
 #include <stdlib.h>
 
 #if OC_PLATFORM_WINDOWS
 #include <Windows.h>
-#include <GL/gl.h>
+#include <gl/gl.h>
 #endif // OC_PLATFORM_WINDOWS
 
-void MemoryCopy(void* Destination, const void* Source, u64 Size)
+void MemoryCopy(void* Destination, const void* Source, uint64 Size)
 {
     memcpy(Destination, Source, (size_t)Size);
 }
 
-void MemorySet(void* Destination, u8 Value, u64 Size)
+void MemorySet(void* Destination, uint8 Value, uint64 Size)
 {
     memset(Destination, (int)Value, Size);
 }
 
-void MemoryZero(void* Destination, u64 Size)
+void MemoryZero(void* Destination, uint64 Size)
 {
     MemorySet(Destination, 0, Size);
 }
 
-typedef struct linear_memory_arena
+struct FLinearMemoryArena
 {
     void*   BaseAddress;
-    u64     AllocatedOffset;
-    u64     BlockSize;
-}
-linear_memory_arena;
+    uint64  AllocatedOffset;
+    uint64  BlockSize;
+};
 
-internal b8 CreateLinearMemoryArena(linear_memory_arena** MemoryArena, u64 ArenaSize)
+internal bool8 CreateLinearMemoryArena(FLinearMemoryArena** MemoryArena, uint64 ArenaSize)
 {
     if (MemoryArena == NULL)
     {
@@ -259,7 +306,7 @@ internal b8 CreateLinearMemoryArena(linear_memory_arena** MemoryArena, u64 Arena
         return false;
     }
 
-    u64 MemoryRequirement = sizeof(linear_memory_arena) + ArenaSize;
+    uint64 MemoryRequirement = sizeof(FLinearMemoryArena) + ArenaSize;
     void* Memory = malloc(MemoryRequirement);
     if (Memory == NULL)
     {
@@ -267,17 +314,17 @@ internal b8 CreateLinearMemoryArena(linear_memory_arena** MemoryArena, u64 Arena
     }
     MemoryZero(Memory, MemoryRequirement);
 
-    *MemoryArena = (linear_memory_arena*)Memory;
-    linear_memory_arena* Arena = *MemoryArena;
+    *MemoryArena = (FLinearMemoryArena*)Memory;
+    FLinearMemoryArena* Arena = *MemoryArena;
 
-    Arena->BaseAddress = ((u8*)Memory) + sizeof(linear_memory_arena);
+    Arena->BaseAddress = ((uint8*)Memory) + sizeof(FLinearMemoryArena);
     Arena->AllocatedOffset = 0;
     Arena->BlockSize = ArenaSize;
 
     return true;
 }
 
-internal void DestroyLinearMemoryArena(linear_memory_arena** MemoryArena)
+internal void DestroyLinearMemoryArena(FLinearMemoryArena** MemoryArena)
 {
     if (MemoryArena == NULL || *MemoryArena == NULL)
     {
@@ -288,7 +335,7 @@ internal void DestroyLinearMemoryArena(linear_memory_arena** MemoryArena)
     *MemoryArena = NULL;
 }
 
-internal void* AllocateLinearMemoryArena(linear_memory_arena* MemoryArena, u64 BlockSize)
+internal void* AllocateLinearMemoryArena(FLinearMemoryArena* MemoryArena, uint64 BlockSize)
 {
     if (MemoryArena == NULL)
     {
@@ -305,12 +352,12 @@ internal void* AllocateLinearMemoryArena(linear_memory_arena* MemoryArena, u64 B
         return NULL;
     }
 
-    void* Memory = ((u8*)MemoryArena->BaseAddress) + MemoryArena->AllocatedOffset;
+    void* Memory = ((uint8*)MemoryArena->BaseAddress) + MemoryArena->AllocatedOffset;
     MemoryArena->AllocatedOffset += BlockSize;
     return Memory;
 }
 
-internal void ResetLinearMemoryArena(linear_memory_arena* MemoryArena)
+internal void ResetLinearMemoryArena(FLinearMemoryArena* MemoryArena)
 {
     if (MemoryArena == NULL)
     {
@@ -320,20 +367,19 @@ internal void ResetLinearMemoryArena(linear_memory_arena* MemoryArena)
     MemoryArena->AllocatedOffset = 0;
 }
 
-typedef struct system_time
+struct FSystemTime
 {
-    u16 Year;
-    u8  Month;
-    u8  DayOfWeek;
-    u8  Day;
-    u8  Hour;
-    u8  Minute;
-    u8  Second;
-    u16 Millisecond;
-}
-system_time;
+    uint16  Year;
+    uint8   Month;
+    uint8   DayOfWeek;
+    uint8   Day;
+    uint8   Hour;
+    uint8   Minute;
+    uint8   Second;
+    uint16  Millisecond;
+};
 
-internal void PlatformGetSystemTime(system_time* SystemTime)
+internal void PlatformGetSystemTime(FSystemTime* SystemTime)
 {
     SYSTEMTIME SysTime;
     GetSystemTime(&SysTime);
@@ -348,83 +394,82 @@ internal void PlatformGetSystemTime(system_time* SystemTime)
     SystemTime->Millisecond = SysTime.wMilliseconds;
 }
 
-internal u64 PlatformGetTimeNano()
+internal uint64 PlatformGetTimeNano()
 {
 #if OC_PLATFORM_WINDOWS
     LARGE_INTEGER PC;
     QueryPerformanceCounter(&PC);
-    u64 PerformanceCounter = PC.QuadPart;
+    uint64 PerformanceCounter = PC.QuadPart;
 
     LARGE_INTEGER PF;
     QueryPerformanceFrequency(&PF);
-    u64 PerformanceFrequency = PF.QuadPart;
+    uint64 PerformanceFrequency = PF.QuadPart;
 
-    return (u64)(((r64)(PerformanceCounter) * 1e9) / (r64)(PerformanceFrequency));
+    return (uint64)(((float64)(PerformanceCounter) * 1e9) / (float64)(PerformanceFrequency));
 #endif
 }
 
-internal u64 PlatformGetTimeMicro()
+internal uint64 PlatformGetTimeMicro()
 {
 #if OC_PLATFORM_WINDOWS
     LARGE_INTEGER PC;
     QueryPerformanceCounter(&PC);
-    u64 PerformanceCounter = PC.QuadPart;
+    uint64 PerformanceCounter = PC.QuadPart;
 
     LARGE_INTEGER PF;
     QueryPerformanceFrequency(&PF);
-    u64 PerformanceFrequency = PF.QuadPart;
+    uint64 PerformanceFrequency = PF.QuadPart;
 
-    return (u64)(((r64)(PerformanceCounter) * 1e6) / (r64)(PerformanceFrequency));
+    return (uint64)(((float64)(PerformanceCounter) * 1e6) / (float64)(PerformanceFrequency));
 #endif
 }
 
-internal u64 PlatformGetTimeMilli()
+internal uint64 PlatformGetTimeMilli()
 {
 #if OC_PLATFORM_WINDOWS
     LARGE_INTEGER PC;
     QueryPerformanceCounter(&PC);
-    u64 PerformanceCounter = PC.QuadPart;
+    uint64 PerformanceCounter = PC.QuadPart;
 
     LARGE_INTEGER PF;
     QueryPerformanceFrequency(&PF);
-    u64 PerformanceFrequency = PF.QuadPart;
+    uint64 PerformanceFrequency = PF.QuadPart;
 
     return (PerformanceCounter * 1000) / PerformanceFrequency;
 #endif
 }
 
-internal u64 PlatformGetTimeSeconds()
+internal uint64 PlatformGetTimeSeconds()
 {
 #if OC_PLATFORM_WINDOWS
     LARGE_INTEGER PC;
     QueryPerformanceCounter(&PC);
-    u64 PerformanceCounter = PC.QuadPart;
+    uint64 PerformanceCounter = PC.QuadPart;
 
     LARGE_INTEGER PF;
     QueryPerformanceFrequency(&PF);
-    u64 PerformanceFrequency = PF.QuadPart;
+    uint64 PerformanceFrequency = PF.QuadPart;
 
     return PerformanceCounter / PerformanceFrequency;
 #endif
 }
 
-typedef struct window_data
+struct FWindowData
 {
     char    Title[256];
-    u32     Width;
-    u32     Height;
-    s32     PositionX;
-    s32     PositionY;
+    uint32  Width;
+    uint32  Height;
+    int32   PositionX;
+    int32   PositionY;
     void*   Handle;
-} window_data;
+};
 
-typedef struct game_data
+struct FGameData
 {
-    b32             bIsRunning;
-    window_data*    WindowData;
-}
-game_data;
-internal game_data* GameData;
+    bool32          bIsRunning;
+    FWindowData*    WindowData;
+};
+internal FGameData* GameData;
 
 internal LRESULT OceanWindowProcedure(HWND WindowHandle, UINT Message, WPARAM WParam, LPARAM LParam)
 {
@@ -440,7 +485,7 @@ internal LRESULT OceanWindowProcedure(HWND WindowHandle, UINT Message, WPARAM WP
     return DefWindowProc(WindowHandle, Message, WParam, LParam);
 }
 
-internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_memory_arena* MemoryArena)
+internal FWindowData* CreateGameWindow(FGameCreateData* GameCreateData, FLinearMemoryArena* MemoryArena)
 {
     if (GameCreateData == NULL || MemoryArena == NULL)
     {
@@ -475,7 +520,7 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
         return NULL;
     }
 
-    window_data* WindowData = (window_data*)AllocateLinearMemoryArena(MemoryArena, sizeof(window_data));
+    FWindowData* WindowData = (FWindowData*)AllocateLinearMemoryArena(MemoryArena, sizeof(FWindowData));
     WindowData->Handle = WindowHandle;
 
     MemoryCopy(WindowData->Title, GameCreateData->WindowTitle, sizeof(WindowData->Title));
@@ -490,7 +535,7 @@ internal window_data* CreateGameWindow(game_create_data* GameCreateData, linear_
 #endif // OC_PLATFORM_WINDOWS
 }
 
-internal void PumpWindowMessages(window_data* WindowData)
+internal void PumpWindowMessages(FWindowData* WindowData)
 {
     MSG Message;
     while (PeekMessageA(&Message, (HWND)WindowData->Handle, 0, 0, PM_REMOVE))
@@ -502,6 +547,7 @@ internal void PumpWindowMessages(window_data* WindowData)
 
 typedef char GLchar;
 typedef ptrdiff_t GLsizeiptr;
+typedef intptr_t GLintptr;
 
 typedef void (APIENTRY *DEBUGPROC)(GLenum source,
             GLenum type,
@@ -512,40 +558,84 @@ typedef void (APIENTRY *DEBUGPROC)(GLenum source,
             const void *userParam);
 
 #define OC_DECLARE_OPENGL_FUNCTION(NAME, RETURN, ...)   \
-    typedef RETURN(*PFN##NAME)(__VA_ARGS__);            \
-    internal PFN##NAME NAME;
+    typedef RETURN(*PFN_##NAME)(__VA_ARGS__);           \
+    internal PFN_##NAME PFN_gl##NAME;
 
-#define OC_LOAD_OPENGL_FUNCTION(NAME)                   \
-    NAME = (PFN##NAME)wglGetProcAddress(#NAME);         \
-    if (NAME == NULL)                                   \
-    {                                                   \
-        return false;                                   \
+#define OC_LOAD_OPENGL_FUNCTION(NAME)                           \
+    PFN_gl##NAME = (PFN_##NAME)wglGetProcAddress("gl"#NAME);    \
+    if (PFN_gl##NAME == NULL)                                   \
+    {                                                           \
+        return false;                                           \
     }
 
 #if OC_PLATFORM_WINDOWS
-OC_DECLARE_OPENGL_FUNCTION(wglSwapIntervalEXT, BOOL, int)
+typedef BOOL(*PFN_SwapIntervalEXT)(int);
+internal PFN_SwapIntervalEXT PFN_wglSwapIntervalEXT;
+#define wglSwapIntervalEXT PFN_wglSwapIntervalEXT
 #endif // OC_PLATFORM_WINDOWS
 
-OC_DECLARE_OPENGL_FUNCTION(glGenBuffers,                void, GLsizei, GLuint*)
-OC_DECLARE_OPENGL_FUNCTION(glBindBuffer,                void, GLenum, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glBufferData,                void, GLenum, GLsizeiptr, const void*, GLenum)
-OC_DECLARE_OPENGL_FUNCTION(glEnableVertexAttribArray,   void, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glVertexAttribPointer,       void, GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)
-OC_DECLARE_OPENGL_FUNCTION(glCreateProgram,             GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glCreateShader,              GLuint, GLenum)
-OC_DECLARE_OPENGL_FUNCTION(glShaderSource,              void, GLuint, GLsizei, const GLchar**, const GLint*)
-OC_DECLARE_OPENGL_FUNCTION(glCompileShader,             void, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glAttachShader,              void, GLuint, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glLinkProgram,               void, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glDetachShader,              void, GLuint, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glDeleteShader,              void, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glUseProgram,                void, GLuint)
-OC_DECLARE_OPENGL_FUNCTION(glGetShaderiv,               void, GLuint, GLenum, GLint*)
-OC_DECLARE_OPENGL_FUNCTION(glGetProgramiv,              void, GLuint, GLenum, GLint*)
-OC_DECLARE_OPENGL_FUNCTION(glDebugMessageCallback,      void, DEBUGPROC, const void*)
-OC_DECLARE_OPENGL_FUNCTION(glDebugMessageControl,       void, GLenum, GLenum, GLenum, GLsizei, const GLuint*, GLboolean)
-OC_DECLARE_OPENGL_FUNCTION(glCreateVertexArrays,        void, GLsizei, GLuint*)
-OC_DECLARE_OPENGL_FUNCTION(glBindVertexArray,           void, GLuint)
+OC_DECLARE_OPENGL_FUNCTION(GenBuffers, void, GLsizei, GLuint*)
+#define glGenBuffers PFN_glGenBuffers
+
+OC_DECLARE_OPENGL_FUNCTION(BindBuffer, void, GLenum, GLuint)
+#define glBindBuffer PFN_glBindBuffer
+
+OC_DECLARE_OPENGL_FUNCTION(BufferData, void, GLenum, GLsizeiptr, const void*, GLenum)
+#define glBufferData PFN_glBufferData
+
+OC_DECLARE_OPENGL_FUNCTION(BufferSubData, void, GLenum, GLintptr, GLsizeiptr, const void*)
+#define glBufferSubData PFN_glBufferSubData
+
+OC_DECLARE_OPENGL_FUNCTION(EnableVertexAttribArray, void, GLuint)
+#define glEnableVertexAttribArray PFN_glEnableVertexAttribArray
+
+OC_DECLARE_OPENGL_FUNCTION(VertexAttribPointer, void, GLuint, GLint, GLenum, GLboolean, GLsizei, const void*)
+#define glVertexAttribPointer PFN_glVertexAttribPointer
+
+OC_DECLARE_OPENGL_FUNCTION(CreateProgram, GLuint)
+#define glCreateProgram PFN_glCreateProgram
+
+OC_DECLARE_OPENGL_FUNCTION(CreateShader, GLuint, GLenum)
+#define glCreateShader PFN_glCreateShader
+
+OC_DECLARE_OPENGL_FUNCTION(ShaderSource, void, GLuint, GLsizei, const GLchar**, const GLint*)
+#define glShaderSource PFN_glShaderSource
+
+OC_DECLARE_OPENGL_FUNCTION(CompileShader, void, GLuint)
+#define glCompileShader PFN_glCompileShader
+
+OC_DECLARE_OPENGL_FUNCTION(AttachShader, void, GLuint, GLuint)
+#define glAttachShader PFN_glAttachShader
+
+OC_DECLARE_OPENGL_FUNCTION(LinkProgram, void, GLuint)
+#define glLinkProgram PFN_glLinkProgram
+
+OC_DECLARE_OPENGL_FUNCTION(DetachShader, void, GLuint, GLuint)
+#define glDetachShader PFN_glDetachShader
+
+OC_DECLARE_OPENGL_FUNCTION(DeleteShader, void, GLuint)
+#define glDeleteShader PFN_glDeleteShader
+
+OC_DECLARE_OPENGL_FUNCTION(UseProgram, void, GLuint)
+#define glUseProgram PFN_glUseProgram
+
+OC_DECLARE_OPENGL_FUNCTION(GetShaderiv, void, GLuint, GLenum, GLint*)
+#define glGetShaderiv PFN_glGetShaderiv
+
+OC_DECLARE_OPENGL_FUNCTION(GetProgramiv, void, GLuint, GLenum, GLint*)
+#define glGetProgramiv PFN_glGetProgramiv
+
+OC_DECLARE_OPENGL_FUNCTION(DebugMessageCallback, void, DEBUGPROC, const void*)
+#define glDebugMessageCallback PFN_glDebugMessageCallback
+
+OC_DECLARE_OPENGL_FUNCTION(DebugMessageControl, void, GLenum, GLenum, GLenum, GLsizei, const GLuint*, GLboolean)
+#define glDebugMessageControl PFN_glDebugMessageControl
+
+OC_DECLARE_OPENGL_FUNCTION(CreateVertexArrays, void, GLsizei, GLuint*)
+#define glCreateVertexArrays PFN_glCreateVertexArrays
+
+OC_DECLARE_OPENGL_FUNCTION(BindVertexArray, void, GLuint)
+#define glBindVertexArray PFN_glBindVertexArray
 
 #define GL_ARRAY_BUFFER             0x8892
 #define GL_ELEMENT_ARRAY_BUFFER     0x8893
@@ -560,6 +650,17 @@ OC_DECLARE_OPENGL_FUNCTION(glBindVertexArray,           void, GLuint)
 #define GL_DEBUG_OUTPUT             0x92E0
 #define GL_DEBUG_OUTPUT_SYNCHRONOUS 0x8242
 
+typedef GLuint FGLHandle;
+
+struct FOpenGLState
+{
+    FGLHandle BoundVertexArray;
+    FGLHandle BoundVertexBuffer;
+    FGLHandle BoundIndexBuffer;
+    FGLHandle BoundShader;
+};
+internal FOpenGLState OpenGLState; 
+
 internal void OpenGLDebugCallback(
     GLenum      Source,
     GLenum      Type,
@@ -573,8 +674,12 @@ internal void OpenGLDebugCallback(
     Assert(false);
 }
 
-internal b8 InitializeOpenGL(HDC WindowDC)
+internal bool8 InitializeOpenGL(HDC WindowDC)
 {
+    OpenGLState.BoundVertexArray = 0;
+    OpenGLState.BoundVertexBuffer = 0;
+    OpenGLState.BoundIndexBuffer = 0;
+
 #if OC_PLATFORM_WINDOWS
 
     PIXELFORMATDESCRIPTOR DesiredPixelFormat = {};
@@ -598,27 +703,29 @@ internal b8 InitializeOpenGL(HDC WindowDC)
     HGLRC OpenGLContext = wglCreateContext(WindowDC);
     wglMakeCurrent(WindowDC, OpenGLContext);
 
-    OC_LOAD_OPENGL_FUNCTION(wglSwapIntervalEXT);
-    OC_LOAD_OPENGL_FUNCTION(glGenBuffers);
-    OC_LOAD_OPENGL_FUNCTION(glBindBuffer);
-    OC_LOAD_OPENGL_FUNCTION(glBufferData);
-    OC_LOAD_OPENGL_FUNCTION(glEnableVertexAttribArray);
-    OC_LOAD_OPENGL_FUNCTION(glVertexAttribPointer);
-    OC_LOAD_OPENGL_FUNCTION(glCreateProgram);
-    OC_LOAD_OPENGL_FUNCTION(glCreateShader);
-    OC_LOAD_OPENGL_FUNCTION(glShaderSource);
-    OC_LOAD_OPENGL_FUNCTION(glCompileShader);
-    OC_LOAD_OPENGL_FUNCTION(glAttachShader);
-    OC_LOAD_OPENGL_FUNCTION(glLinkProgram);
-    OC_LOAD_OPENGL_FUNCTION(glDetachShader);
-    OC_LOAD_OPENGL_FUNCTION(glDeleteShader);
-    OC_LOAD_OPENGL_FUNCTION(glUseProgram);
-    OC_LOAD_OPENGL_FUNCTION(glGetShaderiv);
-    OC_LOAD_OPENGL_FUNCTION(glGetProgramiv);
-    OC_LOAD_OPENGL_FUNCTION(glDebugMessageCallback);
-    OC_LOAD_OPENGL_FUNCTION(glDebugMessageControl);
-    OC_LOAD_OPENGL_FUNCTION(glCreateVertexArrays);
-    OC_LOAD_OPENGL_FUNCTION(glBindVertexArray);
+    PFN_wglSwapIntervalEXT = (PFN_SwapIntervalEXT)wglGetProcAddress("wglSwapIntervalEXT");
+
+    OC_LOAD_OPENGL_FUNCTION(GenBuffers);
+    OC_LOAD_OPENGL_FUNCTION(BindBuffer);
+    OC_LOAD_OPENGL_FUNCTION(BufferData);
+    OC_LOAD_OPENGL_FUNCTION(BufferSubData);
+    OC_LOAD_OPENGL_FUNCTION(EnableVertexAttribArray);
+    OC_LOAD_OPENGL_FUNCTION(VertexAttribPointer);
+    OC_LOAD_OPENGL_FUNCTION(CreateProgram);
+    OC_LOAD_OPENGL_FUNCTION(CreateShader);
+    OC_LOAD_OPENGL_FUNCTION(ShaderSource);
+    OC_LOAD_OPENGL_FUNCTION(CompileShader);
+    OC_LOAD_OPENGL_FUNCTION(AttachShader);
+    OC_LOAD_OPENGL_FUNCTION(LinkProgram);
+    OC_LOAD_OPENGL_FUNCTION(DetachShader);
+    OC_LOAD_OPENGL_FUNCTION(DeleteShader);
+    OC_LOAD_OPENGL_FUNCTION(UseProgram);
+    OC_LOAD_OPENGL_FUNCTION(GetShaderiv);
+    OC_LOAD_OPENGL_FUNCTION(GetProgramiv);
+    OC_LOAD_OPENGL_FUNCTION(DebugMessageCallback);
+    OC_LOAD_OPENGL_FUNCTION(DebugMessageControl);
+    OC_LOAD_OPENGL_FUNCTION(CreateVertexArrays);
+    OC_LOAD_OPENGL_FUNCTION(BindVertexArray);
 
     GLint OpenGLFlags;
     glGetIntegerv(GL_CONTEXT_FLAGS, &OpenGLFlags);
@@ -636,9 +743,7 @@ internal b8 InitializeOpenGL(HDC WindowDC)
 #endif // OC_PLATFORM_WINDOWS
 }
 
-typedef GLuint gl_handle;
-
-typedef enum shader_data_type_enum
+enum EShaderDataTypeEnum
 {
     SHADER_DATA_TYPE_INVALID    = 0,
 
@@ -659,76 +764,70 @@ typedef enum shader_data_type_enum
 
     // SHADER_DATA_TYPE_MAT_3      = 13,
     // SHADER_DATA_TYPE_MAT_4      = 14
-}
-shader_data_type_enum;
-typedef u8 shader_data_type;
+};
+typedef uint8 EShaderDataType;
 
-typedef struct vertex_buffer_element
+struct FVertexBufferElement
 {
-    shader_data_type    DataType;
-    b8                  bIsNormalized;
+    EShaderDataType     DataType;
+    bool8               bIsNormalized;
+
     // NOTE(Traian): Reserved for internal use. At the moment, only used
     //   for debugging purposes.
-    u32                 Offset;
-}
-vertex_buffer_element;
+    uint32              Offset;
+};
 
-typedef struct vertex_buffer_layout
+struct FVertexBufferLayout
 {
-    vertex_buffer_element*  Elements;
-    u32                     ElementsCount;
-    u32                     Stride;
-}
-vertex_buffer_layout;
+    FVertexBufferElement*  Elements;
+    uint32                 ElementsCount;
+    uint32                 Stride;
+};
 
-typedef enum vertex_buffer_flags_enum
+enum vertex_buffer_flags_enum
 {
     VERTEX_BUFFER_FLAG_NONE             = 0,
     VERTEX_BUFFER_FLAG_DYNAMIC_DRAW_BIT = Bit(0)
-}
-vertex_buffer_flags_enum;
-typedef u8 vertex_buffer_flags;
+};
+typedef uint8 EVertexBufferFlags;
 
-typedef enum index_buffer_type_enum
+enum EIndexBufferTypeEnum
 {
     INDEX_BUFFER_TYPE_INVALID   = 0,
     INDEX_BUFFER_TYPE_UINT8     = 1,
     INDEX_BUFFER_TYPE_UINT16    = 2,
     INDEX_BUFFER_TYPE_UINT32    = 3
-}
-index_buffer_type_enum;
-typedef u8 index_buffer_type;
+};
+typedef uint8 EIndexBufferType;
 
-typedef struct vertex_array
+struct FVertexArray
 {
-    gl_handle               VertexArrayHandle;
-    gl_handle               VertexBufferHandle;
-    vertex_buffer_layout    VertexBufferLayout;
-    vertex_buffer_flags     VertexBufferFlags;
-    gl_handle               IndexBufferHandle;
-    index_buffer_type       IndexBufferType;
-    u64                     IndexBufferIndicesCount;
-}
-vertex_array;
+    FGLHandle               VertexArrayHandle;
+    FGLHandle               VertexBufferHandle;
+    FVertexBufferLayout     VertexBufferLayout;
+    EVertexBufferFlags      VertexBufferFlags;
+    FGLHandle               IndexBufferHandle;
+    EIndexBufferType        IndexBufferType;
+    uint64                  IndexBufferIndicesCount;
+};
 
-typedef struct vertex_array_specification
+struct FVertexArraySpecification
 {
-    vertex_buffer_element*  VertexBufferLayoutElements;
-    u32                     VertexBufferLayoutElementsCount;
-    vertex_buffer_flags     VertexBufferFlags;
-    const void*             VertexBufferData;
-    u64                     VertexBufferDataSize;
-    index_buffer_type       IndexBufferType;
-    const void*             IndexBufferData;
-    u64                     IndexBufferIndicesCount;
-}
-vertex_array_specification;
+    FVertexBufferElement*  VertexBufferLayoutElements;
+    uint32                 VertexBufferLayoutElementsCount;
+    EVertexBufferFlags     VertexBufferFlags;
+    const void*            VertexBufferData;
+    uint64                 VertexBufferDataSize;
+    EIndexBufferType       IndexBufferType;
+    const void*            IndexBufferData;
+    uint64                 IndexBufferIndicesCount;
+};
 
-internal void UTILSGetOpenGLTypeInfo(shader_data_type DataType, GLenum* GLType, GLint* GLTypeCount, u32* GLTypeSize)
+internal void UTILS_GetOpenGLTypeInfo(EShaderDataType DataType, GLenum* GLType, GLint* GLTypeCount, uint32* GLTypeSize)
 {
     GLenum Type;
     GLint TypeCount;
-    u32 TypeSize;
+    uint32 TypeSize;
 
     switch (DataType)
     {
@@ -786,11 +885,50 @@ internal void UTILSGetOpenGLTypeInfo(shader_data_type DataType, GLenum* GLType, 
     }
 }
 
-internal b8 RendererCreateVertexArray(vertex_array* VertexArray, const vertex_array_specification* Specification, linear_memory_arena* MemoryArena)
+internal void RendererBindVertexArray(const FVertexArray* VertexArray)
 {
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    if (OpenGLState.BoundVertexArray != VertexArray->VertexArrayHandle)
+    {
+        glBindVertexArray(VertexArray->VertexArrayHandle);
+    }
+    if (OpenGLState.BoundVertexBuffer != VertexArray->VertexBufferHandle)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, VertexArray->VertexBufferHandle);
+    }
+    if (OpenGLState.BoundIndexBuffer != VertexArray->IndexBufferHandle)
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VertexArray->IndexBufferHandle);
+    }
+}
+
+internal void RendererUnbindVertexArray()
+{
+    if (OpenGLState.BoundVertexArray)
+    {
+        glBindVertexArray(0);
+    }
+    if (OpenGLState.BoundVertexBuffer)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+    }
+    if (OpenGLState.BoundIndexBuffer)
+    {
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+    }
+}
+
+internal void RendererSetVertexBufferData(FGLHandle VertexBuffer, const void* Data, uint64 DataSize)
+{
+    if (OpenGLState.BoundVertexBuffer != VertexBuffer)
+    {
+        glBindBuffer(GL_ARRAY_BUFFER, VertexBuffer);
+    }
+    glBufferSubData(GL_ARRAY_BUFFER, 0, DataSize, Data);
+}
+
+internal bool8 RendererCreateVertexArray(FVertexArray* VertexArray, const FVertexArraySpecification* Specification, FLinearMemoryArena* MemoryArena)
+{
+    RendererUnbindVertexArray();
 
     if (Specification->VertexBufferDataSize == 0)
     {
@@ -801,7 +939,7 @@ internal b8 RendererCreateVertexArray(vertex_array* VertexArray, const vertex_ar
     if (Specification->IndexBufferData == NULL || Specification->IndexBufferIndicesCount == 0)
     {
         // NOTE(Traian): The index buffer requires valid data.
-        Assert(false);
+        InvalidCodePath;
         return false;
     }
 
@@ -815,34 +953,34 @@ internal b8 RendererCreateVertexArray(vertex_array* VertexArray, const vertex_ar
     glBufferData(GL_ARRAY_BUFFER, Specification->VertexBufferDataSize, Specification->VertexBufferData, BufferDataFlag);
 
     VertexArray->VertexBufferLayout.Elements =
-        (vertex_buffer_element*)AllocateLinearMemoryArena(MemoryArena, Specification->VertexBufferLayoutElementsCount * sizeof(vertex_buffer_element));
+        (FVertexBufferElement*)AllocateLinearMemoryArena(MemoryArena, (uint64)Specification->VertexBufferLayoutElementsCount * sizeof(FVertexBufferElement));
     VertexArray->VertexBufferLayout.ElementsCount = Specification->VertexBufferLayoutElementsCount;
 
     VertexArray->VertexBufferLayout.Stride = 0;
-    for (u32 Index = 0; Index < Specification->VertexBufferLayoutElementsCount; Index++)
+    for (uint32 Index = 0; Index < Specification->VertexBufferLayoutElementsCount; Index++)
     {
-        vertex_buffer_element* BufferElement = VertexArray->VertexBufferLayout.Elements + Index;
+        FVertexBufferElement* BufferElement = VertexArray->VertexBufferLayout.Elements + Index;
         *BufferElement = Specification->VertexBufferLayoutElements[Index];
         BufferElement->Offset = VertexArray->VertexBufferLayout.Stride;
 
-        u32 GLSize;
-        UTILSGetOpenGLTypeInfo(BufferElement->DataType, NULL, NULL, &GLSize);
+        uint32 GLSize;
+        UTILS_GetOpenGLTypeInfo(BufferElement->DataType, NULL, NULL, &GLSize);
         VertexArray->VertexBufferLayout.Stride += GLSize;
     }
 
-    for (u32 Index = 0; Index < VertexArray->VertexBufferLayout.ElementsCount; Index++)
+    for (uint32 Index = 0; Index < VertexArray->VertexBufferLayout.ElementsCount; Index++)
     {
-        vertex_buffer_element* BufferElement = VertexArray->VertexBufferLayout.Elements + Index;
+        FVertexBufferElement* BufferElement = VertexArray->VertexBufferLayout.Elements + Index;
         
         GLenum GLType;
         GLint GLTypeCount;
-        UTILSGetOpenGLTypeInfo(BufferElement->DataType, &GLType, &GLTypeCount, NULL);
+        UTILS_GetOpenGLTypeInfo(BufferElement->DataType, &GLType, &GLTypeCount, NULL);
 
         glEnableVertexAttribArray(Index);
         glVertexAttribPointer(
             Index,
             GLTypeCount, GLType, BufferElement->bIsNormalized ? GL_TRUE : GL_FALSE,
-            VertexArray->VertexBufferLayout.Stride, (const void*)((u64)BufferElement->Offset)
+            VertexArray->VertexBufferLayout.Stride, (const void*)((uint64)BufferElement->Offset)
         );
     }
 
@@ -868,22 +1006,17 @@ internal b8 RendererCreateVertexArray(vertex_array* VertexArray, const vertex_ar
 
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, Specification->IndexBufferIndicesCount * TypeSize, Specification->IndexBufferData, GL_STATIC_DRAW);
 
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
     return true;
 }
 
-internal void RendererDraw(const vertex_array* VertexArray)
+internal void RendererDrawIndexedCount(const FVertexArray* VertexArray, uint32 Count)
 {
     if (VertexArray == NULL)
     {
         return;
     }
 
-    glBindVertexArray(VertexArray->VertexArrayHandle);
-    glBindBuffer(GL_ARRAY_BUFFER, VertexArray->VertexBufferHandle);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, VertexArray->IndexBufferHandle);
+    RendererBindVertexArray(VertexArray);
 
     GLenum GLIndexType;
     switch (VertexArray->IndexBufferType)
@@ -900,36 +1033,40 @@ internal void RendererDraw(const vertex_array* VertexArray)
         break;
     }
 
-    glDrawElements(GL_TRIANGLES, VertexArray->IndexBufferIndicesCount, GLIndexType, NULL);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-    glBindVertexArray(0);
+    RendererBindVertexArray(VertexArray);
+    glDrawElements(GL_TRIANGLES, Count, GLIndexType, NULL);
 }
 
-typedef struct quad_vertex
+internal void RendererDrawIndexed(const FVertexArray* VertexArray)
 {
-    v2  Position;
-    v2  TextureCoords;
-    v4  Color;
-    r32 TextureIndex;
-    r32 TilingFactor;
+    RendererDrawIndexedCount(VertexArray, VertexArray->IndexBufferIndicesCount);
 }
-quad_vertex;
 
-typedef struct renderer_data
+struct FQuadVertex
 {
-    gl_handle       QuadShader;
-    vertex_array    QuadVertexArray;
+    FVec2   Position;
+    FVec2   TextureCoords;
+    FVec4   Color;
+    float32 TextureIndex;
+    float32 TilingFactor;
+};
+
+#define OC_MAX_QUADS 4096ULL
+
+struct FRendererData
+{
+    FGLHandle       QuadShader;
+    FVertexArray    QuadVertexArray;
+    FQuadVertex     QuadVertices[OC_MAX_QUADS * 4];
+    uint64          QuadVerticesCount;
 
 #if OC_PLATFORM_WINDOWS
     HDC             DeviceContext;
 #endif // OC_PLATFORM_WINDOWS
-}
-renderer_data;
-internal renderer_data* RendererData;
+};
+internal FRendererData* RendererData;
 
-internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
+internal bool8 InitializeRenderer(FLinearMemoryArena* MemoryArena)
 {
     HDC WindowDC = GetDC((HWND)GameData->WindowData->Handle);
 
@@ -939,7 +1076,7 @@ internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
         return false;
     }
 
-    RendererData = (renderer_data*)AllocateLinearMemoryArena(MemoryArena, sizeof(renderer_data));
+    RendererData = (FRendererData*)AllocateLinearMemoryArena(MemoryArena, sizeof(FRendererData));
     if (RendererData == NULL)
     {
         return false;
@@ -947,31 +1084,32 @@ internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
 
     RendererData->DeviceContext = WindowDC;
 
-    const char* VertexShaderSource =
-    "#version 450 core\n"
-    ""
-    "layout(location = 0) in vec2   a_Position;"
-    "layout(location = 1) in vec2   a_TextureCoords;"
-    "layout(location = 2) in vec4   a_Color;"
-    "layout(location = 3) in float  a_TextureIndex;"
-    "layout(location = 4) in float  a_TilingFactor;"
-    ""
-    "layout(location = 0) out vec2  v_TextureCoords;"
-    "layout(location = 1) out vec4  v_Color;"
-    "layout(location = 2) out float v_TextureIndex;"
-    "layout(location = 3) out float v_TilingFactor;"
-    ""
-    "void main()"
-    "{"
-    "   v_TextureCoords = a_TextureCoords;"
-    "   v_Color         = a_Color;"
-    "   v_TextureIndex  = a_TextureIndex;"
-    "   v_TilingFactor  = a_TilingFactor;"
-    ""
-    "   gl_Position     = vec4(a_Position, 0.0, 1.0);"
-    "}";
+    const char* VertexShaderSource = R"(
+        #version 450 core
+        
+        layout(location = 0) in vec2   a_Position;
+        layout(location = 1) in vec2   a_TextureCoords;
+        layout(location = 2) in vec4   a_Color;
+        layout(location = 3) in float  a_TextureIndex;
+        layout(location = 4) in float  a_TilingFactor;
+        
+        layout(location = 0) out vec2  v_TextureCoords;
+        layout(location = 1) out vec4  v_Color;
+        layout(location = 2) out float v_TextureIndex;
+        layout(location = 3) out float v_TilingFactor;
+        
+        void main()
+        {
+           v_TextureCoords = a_TextureCoords;
+           v_Color         = a_Color;
+           v_TextureIndex  = a_TextureIndex;
+           v_TilingFactor  = a_TilingFactor;
+        
+           gl_Position     = vec4(a_Position, 0.0, 1.0);
+        }
+    )";
 
-    gl_handle VertexShader = glCreateShader(GL_VERTEX_SHADER);
+    FGLHandle VertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(VertexShader, 1, &VertexShaderSource, NULL);
     glCompileShader(VertexShader);
 
@@ -979,22 +1117,23 @@ internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
     glGetShaderiv(VertexShader, GL_COMPILE_STATUS, &VertexSuccess);
     Assert(VertexSuccess);
 
-    const char* FragmentShaderSource =
-    "#version 450 core\n"
-    ""
-    "layout(location = 0) in vec2   v_TextureCoords;"
-    "layout(location = 1) in vec4   v_Color;"
-    "layout(location = 2) in float  v_TextureIndex;"
-    "layout(location = 3) in float  v_TilingFactor;"
-    ""
-    "layout(location = 0) out vec4  o_Color;"
-    ""
-    "void main()"
-    "{"
-    "   o_Color = v_Color;"
-    "}";
+    const char* FragmentShaderSource = R"(
+        #version 450 core
+        
+        layout(location = 0) in vec2   v_TextureCoords;
+        layout(location = 1) in vec4   v_Color;
+        layout(location = 2) in float  v_TextureIndex;
+        layout(location = 3) in float  v_TilingFactor;
+        
+        layout(location = 0) out vec4  o_Color;
+        
+        void main()
+        {
+           o_Color = v_Color;
+        }
+    )";
 
-    gl_handle FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
+    FGLHandle FragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(FragmentShader, 1, &FragmentShaderSource, NULL);
     glCompileShader(FragmentShader);
 
@@ -1015,20 +1154,10 @@ internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
     glDeleteShader(FragmentShader);
 
     glUseProgram(RendererData->QuadShader);
-    
-    quad_vertex QuadVertices[] = {
-        { -0.5F, -0.5F, 0.0F, 0.0F, 1.0f, 0.0f, 0.0f, 1.0f, 0.0F, 1.0F },
-        {  0.0F,  0.5F, 0.0F, 0.0F, 0.0f, 1.0f, 0.0f, 1.0f, 0.0F, 1.0F },
-        {  0.5F, -0.5F, 0.0F, 0.0F, 0.0f, 0.0f, 1.0f, 1.0f, 0.0F, 1.0F }
-    };
 
-    u32 IndicesData[] = {
-        0, 1, 2
-    };
+    FVertexArraySpecification VASpec = {};
 
-    vertex_array_specification VASpec = {};
-
-    vertex_buffer_element BufferLayoutElements[] = {
+    FVertexBufferElement BufferLayoutElements[] = {
         { SHADER_DATA_TYPE_FLOAT_2 },
         { SHADER_DATA_TYPE_FLOAT_2 },
         { SHADER_DATA_TYPE_FLOAT_4 },
@@ -1038,14 +1167,33 @@ internal b8 InitializeRenderer(linear_memory_arena* MemoryArena)
 
     VASpec.VertexBufferLayoutElements = BufferLayoutElements;
     VASpec.VertexBufferLayoutElementsCount = ArrayCount(BufferLayoutElements);
-    VASpec.VertexBufferData = QuadVertices;
-    VASpec.VertexBufferDataSize = sizeof(QuadVertices);
+    VASpec.VertexBufferFlags = VERTEX_BUFFER_FLAG_DYNAMIC_DRAW_BIT;
+    VASpec.VertexBufferDataSize = (OC_MAX_QUADS * 4) * sizeof(FQuadVertex);
+
+    // TODO(Traian): Implement a transient memory arena to use here.
+    // NOTE(Traian): We use the vertices buffer for the indices. This is possible as long as no
+    //   multithreading is performed.
+    uint32* IndicesData = (uint32*)RendererData->QuadVertices;
+    for (uint64 Index = 0; Index < OC_MAX_QUADS; Index++)
+    {
+        IndicesData[6 * Index + 0] = 0 + (4 * Index);
+        IndicesData[6 * Index + 1] = 1 + (4 * Index);
+        IndicesData[6 * Index + 2] = 2 + (4 * Index);
+        IndicesData[6 * Index + 3] = 0 + (4 * Index);
+        IndicesData[6 * Index + 4] = 2 + (4 * Index);
+        IndicesData[6 * Index + 5] = 3 + (4 * Index);
+    }
 
     VASpec.IndexBufferType = INDEX_BUFFER_TYPE_UINT32;
     VASpec.IndexBufferData = IndicesData;
-    VASpec.IndexBufferIndicesCount = ArrayCount(IndicesData);
+    VASpec.IndexBufferIndicesCount = OC_MAX_QUADS * 6;
 
-    RendererCreateVertexArray(&RendererData->QuadVertexArray, &VASpec, MemoryArena);
+    if (!RendererCreateVertexArray(&RendererData->QuadVertexArray, &VASpec, MemoryArena))
+    {
+        // TODO(Traian): Logging.
+        Assert(false);
+        return false;
+    }
 
     return true;
 }
@@ -1057,33 +1205,68 @@ internal void RendererSwapBuffers()
 #endif // OC_PLATFORM_WINDOWS
 }
 
-typedef struct quad_specification
+internal void RendererBeginScene()
 {
-    v2  Position;
-    v2  Size;
-    r32 Rotation;
-    r32 TilingFactor;
-    // TODO: Texture handle.
-}
-quad_specification;
-
-internal void RendererSubmitQuad(const quad_specification* QuadSpecification)
-{
-
+    RendererData->QuadVerticesCount = 0;
 }
 
-internal s32 GuardedMain(char** CommandLineArguments, u16 CommandLineArgumentsCount)
+internal void RendererEndScene()
 {
-    game_data GD = {};
+    if (RendererData->QuadVerticesCount > 0)
+    {
+        RendererSetVertexBufferData(
+            RendererData->QuadVertexArray.VertexBufferHandle,
+            RendererData->QuadVertices, RendererData->QuadVerticesCount * sizeof(FQuadVertex));
+        RendererDrawIndexedCount(&RendererData->QuadVertexArray, RendererData->QuadVerticesCount * 3 / 2);
+        
+        RendererData->QuadVerticesCount = 0;
+    }
+}
+
+struct FQuadSpecification
+{
+    FVec2   Position;
+    FVec2   Size;
+    FVec4   Color;
+    float32 Rotation;
+    float32 TilingFactor;
+
+    // TODO(Traian): Texture handle.
+};
+
+internal void RendererSubmitQuad(const FQuadSpecification* QuadSpecification)
+{
+    FQuadVertex* Vertex = RendererData->QuadVertices + RendererData->QuadVerticesCount;
+    Vertex->Position = QuadSpecification->Position;
+    Vertex->Color = QuadSpecification->Color;
+
+    Vertex++;
+    Vertex->Position = QuadSpecification->Position + FVec2{ 0.0F, QuadSpecification->Size.Y };
+    Vertex->Color = QuadSpecification->Color;
+
+    Vertex++;
+    Vertex->Position = QuadSpecification->Position + FVec2{ QuadSpecification->Size.X, QuadSpecification->Size.Y };
+    Vertex->Color = QuadSpecification->Color;
+
+    Vertex++;
+    Vertex->Position = QuadSpecification->Position + FVec2{ QuadSpecification->Size.X, 0.0F };
+    Vertex->Color = QuadSpecification->Color;
+
+    RendererData->QuadVerticesCount += 4;
+}
+
+internal int32 GuardedMain(char** CommandLineArguments, uint16 CommandLineArgumentsCount)
+{
+    FGameData GD = {};
     GameData = &GD;
 
-    game_create_data GameCreateData = {};
+    FGameCreateData GameCreateData = {};
     OnCreate(&GameCreateData);
 
-    linear_memory_arena* CoreSystemsMemoryArena;
-    CreateLinearMemoryArena(&CoreSystemsMemoryArena, Megabytes(1));
+    FLinearMemoryArena* CoreSystemsMemoryArena;
+    CreateLinearMemoryArena(&CoreSystemsMemoryArena, Megabytes(16));
 
-    window_data* WindowData = CreateGameWindow(&GameCreateData, CoreSystemsMemoryArena);
+    FWindowData* WindowData = CreateGameWindow(&GameCreateData, CoreSystemsMemoryArena);
     if (WindowData == NULL)
     {
         // TODO(Traian): Logging.
@@ -1098,23 +1281,23 @@ internal s32 GuardedMain(char** CommandLineArguments, u16 CommandLineArgumentsCo
     }
 
     glViewport(0, 0, WindowData->Width, WindowData->Height);
-    glClearColor(0.9F, 0.8F, 0.2F, 1.0F);
+    glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
 
-    u64 LastTime = PlatformGetTimeMicro();
+    uint64 LastTime = PlatformGetTimeMilli();
     GameData->bIsRunning = true;
     while (GameData->bIsRunning)
     {
         PumpWindowMessages(WindowData);
         
-        u64 CurrentTime = PlatformGetTimeMicro();
-        u64 DeltaTime = CurrentTime - LastTime;
+        uint64 CurrentTime = PlatformGetTimeMilli();
+        uint64 DeltaTime = CurrentTime - LastTime;
         LastTime = CurrentTime;
-
-        OnUpdate((r32)(DeltaTime * 1e-3));
 
         glClear(GL_COLOR_BUFFER_BIT);
 
-        RendererDraw(&RendererData->QuadVertexArray);
+        RendererBeginScene();
+        OnUpdate((float32)(DeltaTime * 1e-3));
+        RendererEndScene();
 
         RendererSwapBuffers();
     }
@@ -1129,5 +1312,36 @@ int WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, int S
     return (int)(GuardedMain(__argv, __argc));
 }
 #endif // OC_PLATFORM_WINDOWS
+
+void SetBackgroundColor(FVec4 Color)
+{
+    glClearColor(Color.X, Color.Y, Color.Z, 1.0F);
+}
+
+void DrawRect(int32 X, int32 Y, int32 Width, int32 Height, int32 Thickness, FVec4 Color)
+{
+    DrawFilledRect(X,                       Y,                      Thickness,          Height - Thickness, Color);
+    DrawFilledRect(X,                       Y + Height - Thickness, Width - Thickness,  Thickness,          Color);
+    DrawFilledRect(X + Width - Thickness,   Y + Thickness,          Thickness,          Height - Thickness, Color);
+    DrawFilledRect(X + Thickness,           Y,                      Width - Thickness,  Thickness,          Color);
+}
+
+void DrawFilledRect(int32 X, int32 Y, int32 Width, int32 Height, FVec4 Color)
+{
+    FQuadSpecification QuadSpec = {};
+
+    float32 OneOverWindowWidth = 1.0F / (float32)GameData->WindowData->Width;
+    float32 OneOverWindowHeight = 1.0F / (float32)GameData->WindowData->Height;
+
+    QuadSpec.Position.X = ((float32)X * OneOverWindowWidth)  * 2.0F - 1.0F;
+    QuadSpec.Position.Y = ((float32)Y * OneOverWindowHeight) * 2.0F - 1.0F;
+
+    QuadSpec.Size.X = (float32)Width * OneOverWindowWidth * 2.0F;
+    QuadSpec.Size.Y = (float32)Height * OneOverWindowHeight * 2.0F;
+
+    QuadSpec.Color = Color;
+
+    RendererSubmitQuad(&QuadSpec);
+}
 
 #endif // OC_IMPLEMENTATION
