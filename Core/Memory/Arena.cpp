@@ -13,7 +13,7 @@ void core_linear_arena_initialize(LinearArena& arena, usize byte_count)
         core_linear_arena_destroy(arena);
 
     arena.byte_count = byte_count;
-    arena.memory = static_cast<ReadWriteBytes>(platform_memory_allocate(arena.byte_count));
+    arena.memory = (ReadWriteBytes)(platform_memory_allocate(arena.byte_count));
     arena.offset = 0;
 
     core_linear_arena_reset(arena);

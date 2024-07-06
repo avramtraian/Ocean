@@ -40,7 +40,7 @@ Window platform_window_create(LinearArena& arena)
 
     // NOTE: Allocate the window object from a linear arena. As the window is most likely to persist for the entire
     //       application lifetime, using a linear allocator is the most efficient.
-    WindowsWindow* window = static_cast<WindowsWindow*>(core_linear_arena_allocate(arena, sizeof(WindowsWindow)));
+    WindowsWindow* window = (WindowsWindow*)(core_linear_arena_allocate(arena, sizeof(WindowsWindow)));
 
     constexpr DWORD window_style = WS_OVERLAPPEDWINDOW;
     window->handle = CreateWindowA(
@@ -68,7 +68,7 @@ Window platform_window_create(LinearArena& arena)
 
 void platform_window_destroy(Window* window)
 {
-    WindowsWindow* windows_window = static_cast<WindowsWindow*>(*window);
+    WindowsWindow* windows_window = (WindowsWindow*)(*window);
     DestroyWindow(windows_window->handle);
     windows_window->handle = nullptr;
 
@@ -79,7 +79,7 @@ void platform_window_destroy(Window* window)
 
 bool platform_window_get_message(Window window)
 {
-    const WindowsWindow* windows_window = static_cast<WindowsWindow*>(window);
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
     VERIFY(windows_window->handle);
 
     MSG message = {};
@@ -94,7 +94,7 @@ bool platform_window_get_message(Window window)
 
 u32 platform_window_width(Window window)
 {
-    const WindowsWindow* windows_window = static_cast<WindowsWindow*>(window);
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
     VERIFY(windows_window->handle);
 
     RECT window_rect = {};
@@ -104,7 +104,7 @@ u32 platform_window_width(Window window)
 
 u32 platform_window_height(Window window)
 {
-    const WindowsWindow* windows_window = static_cast<WindowsWindow*>(window);
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
     VERIFY(windows_window->handle);
 
     RECT window_rect = {};
@@ -114,7 +114,7 @@ u32 platform_window_height(Window window)
 
 i32 platform_window_position_x(Window window)
 {
-    const WindowsWindow* windows_window = static_cast<WindowsWindow*>(window);
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
     VERIFY(windows_window->handle);
 
     RECT window_rect = {};
@@ -124,7 +124,7 @@ i32 platform_window_position_x(Window window)
 
 i32 platform_window_position_y(Window window)
 {
-    const WindowsWindow* windows_window = static_cast<WindowsWindow*>(window);
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
     VERIFY(windows_window->handle);
 
     RECT window_rect = {};

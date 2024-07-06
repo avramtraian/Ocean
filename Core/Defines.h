@@ -100,7 +100,7 @@
 // GENERAL PUROPOSE UTILITY MACROS.
 //==================================
 
-#define KiB (static_cast<unsigned long long>(1024))
+#define KiB ((unsigned long long)(1024))
 #define MiB (1024 * KiB)
 #define GiB (1024 * MiB)
 

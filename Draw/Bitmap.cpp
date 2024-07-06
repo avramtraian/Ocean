@@ -27,7 +27,7 @@ void bitmap_create(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height, Bi
     bitmap.format = format;
 
     const usize bitmap_byte_count = width * height * bytes_per_pixel_from_bitmap_format(format);
-    bitmap.pixels = static_cast<ReadWriteBytes>(core_linear_arena_allocate(arena, bitmap_byte_count));
+    bitmap.pixels = (ReadWriteBytes)(core_linear_arena_allocate(arena, bitmap_byte_count));
 }
 
 void bitmap_destroy(Bitmap& bitmap)
@@ -43,16 +43,16 @@ void bitmap_destroy(Bitmap& bitmap)
 
 void bitmap_clear(Bitmap& bitmap, BitmapClearColor clear_color)
 {
-    const usize pixel_count = static_cast<usize>(bitmap.width) * static_cast<usize>(bitmap.height);
+    const usize pixel_count = (usize)(bitmap.width) * (usize)(bitmap.height);
 
     if (bitmap.format == BITMAP_FORMAT_R8G8B8A8) {
-        const u8 red = static_cast<u8>(clear_color.red * 255.0F);
-        const u8 green = static_cast<u8>(clear_color.green * 255.0F);
-        const u8 blue = static_cast<u8>(clear_color.blue * 255.0F);
-        const u8 alpha = static_cast<u8>(clear_color.alpha * 255.0F);
+        const u8 red = (u8)(clear_color.red * 255.0F);
+        const u8 green = (u8)(clear_color.green * 255.0F);
+        const u8 blue = (u8)(clear_color.blue * 255.0F);
+        const u8 alpha = (u8)(clear_color.alpha * 255.0F);
         const u32 pixel = (red << 24) | (green << 16) | (blue << 8) | (alpha << 0);
 
-        u32* current_pixel = reinterpret_cast<u32*>(bitmap.pixels);
+        u32* current_pixel = (u32*)(bitmap.pixels);
         for (usize pixel_index = 0; pixel_index < pixel_count; ++pixel_index) {
             *current_pixel = pixel;
             ++current_pixel;

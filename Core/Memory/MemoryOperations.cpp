@@ -7,8 +7,8 @@
 
 void copy_memory(void* destination, const void* source, usize byte_count)
 {
-    const WriteonlyBytes dst_buffer = static_cast<WriteonlyBytes>(destination);
-    const ReadonlyBytes src_buffer = static_cast<ReadonlyBytes>(source);
+    const WriteonlyBytes dst_buffer = (WriteonlyBytes)(destination);
+    const ReadonlyBytes src_buffer = (ReadonlyBytes)(source);
 
     for (usize byte_offset = 0; byte_offset < byte_count; ++byte_offset)
         dst_buffer[byte_offset] = src_buffer[byte_offset];
@@ -16,7 +16,7 @@ void copy_memory(void* destination, const void* source, usize byte_count)
 
 void set_memory(void* destination, ReadonlyByte byte_value, usize byte_count)
 {
-    const WriteonlyBytes dst_buffer = static_cast<WriteonlyBytes>(destination);
+    const WriteonlyBytes dst_buffer = (WriteonlyBytes)(destination);
 
     for (usize byte_offset = 0; byte_offset < byte_count; ++byte_offset)
         dst_buffer[byte_offset] = byte_value;
