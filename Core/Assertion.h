@@ -11,3 +11,6 @@
     if (!(__VA_ARGS__)) { \
         OCEAN_DEBUGBREAK; \
     }
+
+// Used when the program is clearly going to crash.
+#define VERIFY_NOT_REACHED VERIFY(false)
