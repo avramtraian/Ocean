@@ -7,8 +7,6 @@
 
 #include <Core/Types.h>
 
-namespace Ocean {
-
 struct LinearArena {
     ReadWriteBytes memory;
     usize byte_count;
@@ -20,5 +18,3 @@ void core_linear_arena_destroy(LinearArena& arena);
 void core_linear_arena_reset(LinearArena& arena);
 
 void* core_linear_arena_allocate(LinearArena& arena, usize allocation_byte_count);
-
-} // namespace Ocean

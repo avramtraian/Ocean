@@ -14,8 +14,6 @@
 #define NOMINMAX
 #include <Windows.h>
 
-namespace Ocean {
-
 void* platform_memory_allocate(usize byte_count)
 {
     if (byte_count == 0)
@@ -34,5 +32,3 @@ void platform_memory_release(void* memory_block, usize byte_count)
     VirtualFree(memory_block, 0, MEM_RELEASE);
     (void)byte_count;
 }
-
-} // namespace Ocean

@@ -5,8 +5,6 @@
 
 #include <Core/Memory/MemoryOperations.h>
 
-namespace Ocean {
-
 void copy_memory(void* destination, const void* source, usize byte_count)
 {
     const WriteonlyBytes dst_buffer = static_cast<WriteonlyBytes>(destination);
@@ -29,5 +27,3 @@ void zero_memory(void* destination, usize byte_count)
     // NOTE: Wrap around the 'set_memory' function.
     set_memory(destination, 0, byte_count);
 }
-
-} // namespace Ocean

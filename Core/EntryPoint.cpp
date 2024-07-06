@@ -7,8 +7,6 @@
 #include <Core/Types.h>
 #include <Platform/Window.h>
 
-namespace Ocean {
-
 static i32 guarded_main()
 {
     LinearArena arena = {};
@@ -21,8 +19,6 @@ static i32 guarded_main()
     core_linear_arena_destroy(arena);
     return 0;
 }
-
-} // namespace Ocean
 
 #if OCEAN_PLATFORM_WINDOWS
 #    include <Platform/Windows/WindowsEntryPoint.h>

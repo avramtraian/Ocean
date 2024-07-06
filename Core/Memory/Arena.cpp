@@ -7,8 +7,6 @@
 #include <Core/Memory/MemoryOperations.h>
 #include <Platform/Memory.h>
 
-namespace Ocean {
-
 void core_linear_arena_initialize(LinearArena& arena, usize byte_count)
 {
     if (arena.byte_count > 0)
@@ -55,5 +53,3 @@ void* core_linear_arena_allocate(LinearArena& arena, usize allocation_byte_count
     arena.offset += allocation_byte_count;
     return memory_block;
 }
-
-} // namespace Ocean

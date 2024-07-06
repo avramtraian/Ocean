@@ -5,8 +5,4 @@
 
 #pragma once
 
-namespace Ocean {
-
 struct LinearArena;
-
-} // namespace Ocean

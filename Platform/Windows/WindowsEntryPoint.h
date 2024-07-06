@@ -18,6 +18,6 @@
 INT WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {
     // NOTE: The Ocean::guraded_main() function is expected to be declared before this file is included.
-    const auto return_code = Ocean::guarded_main();
+    const auto return_code = guarded_main();
     return static_cast<INT>(return_code);
 }

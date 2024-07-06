@@ -7,8 +7,6 @@
 
 #include <Core/Defines.h>
 
-namespace Ocean {
-
 using u8 = unsigned char;
 using u16 = unsigned short;
 using u32 = unsigned int;
@@ -31,5 +29,3 @@ using ReadWriteByte = u8;
 using ReadonlyBytes = ReadonlyByte*;
 using WriteonlyBytes = WriteonlyByte*;
 using ReadWriteBytes = ReadWriteByte*;
-
-} // namespace Ocean

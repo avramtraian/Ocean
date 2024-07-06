@@ -16,8 +16,6 @@
 #define NOMINMAX
 #include <Windows.h>
 
-namespace Ocean {
-
 struct WindowsWindow {
     HWND handle { nullptr };
 };
@@ -145,5 +143,3 @@ static LRESULT platform_windows_window_procedure(HWND window_handle, UINT messag
 
     return DefWindowProcA(window_handle, message, w_param, l_param);
 }
-
-} // namespace Ocean

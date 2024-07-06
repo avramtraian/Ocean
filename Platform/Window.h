@@ -8,8 +8,6 @@
 #include <Core/Types.h>
 #include <Core/Forward.h>
 
-namespace Ocean {
-
 // Opaque handle to a platform-specific window object.
 using Window = void*;
 
@@ -22,5 +20,3 @@ u32 platform_window_width(Window window);
 u32 platform_window_height(Window window);
 i32 platform_window_position_x(Window window);
 i32 platform_window_position_y(Window window);
-
-} // namespace Ocean
