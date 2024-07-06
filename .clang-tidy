@@ -10,6 +10,7 @@ Checks: >
   -readability-named-parameter,
   -readability-redundant-access-specifiers,
   -readability-redundant-preprocessor,
+  -readability-simplify-boolean-expr,
   -readability-static-accessed-through-instance,
 
   bugprone-*,
@@ -30,4 +31,5 @@ Checks: >
   -modernize-use-equals-delete,
   -modernize-use-nodiscard,
   -modernize-use-override,
+  -modernize-use-using,
   -modernize-use-trailing-return-type,
