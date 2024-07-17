@@ -75,11 +75,6 @@ ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y
 {
     VERIFY(bitmap->pixels);
 
-    if (bitmap->format == BITMAP_FORMAT_B8G8R8A8) {
-        u32* bgra_pixels = (u32*)bitmap->pixels;
-        return (ReadWriteBytes)(bgra_pixels + x_offset + y_offset * bitmap->width);
-    }
-
-    VERIFY_NOT_REACHED;
-    return nullptr;
+    const usize bytes_per_pixel = bytes_per_pixel_from_bitmap_format(bitmap->format);
+    return bitmap->pixels + (x_offset + y_offset * bitmap->width) * bytes_per_pixel;
 }
