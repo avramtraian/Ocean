@@ -32,6 +32,8 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Defines.h
     Core/EntryPoint.cpp
     Core/Forward.h
+    Core/Math/Color.cpp
+    Core/Math/Color.h
     Core/Memory/Arena.cpp
     Core/Memory/Arena.h
     Core/Memory/MemoryOperations.cpp

@@ -3,7 +3,4 @@
  * SPDX-License-Identifier: BSD-3-Clause.
  */
 
-#pragma once
-
-struct LinearColor;
-struct LinearArena;
+#include <Core/Math/Color.h>
