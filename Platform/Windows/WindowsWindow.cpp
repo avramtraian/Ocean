@@ -7,7 +7,6 @@
 #include <Core/Memory/Arena.h>
 #include <Platform/Window.h>
 #include <Platform/Windows/WindowsHeaders.h>
-#include <cstdio>
 
 struct WindowsWindow {
     HWND handle { nullptr };
