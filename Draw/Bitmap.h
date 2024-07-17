@@ -6,6 +6,7 @@
 #pragma once
 
 #include <Core/Forward.h>
+#include <Core/Math/Color.h>
 #include <Core/Types.h>
 
 enum BitmapFormatEnum {
@@ -21,18 +22,11 @@ typedef struct Bitmap {
     BitmapFormat format;
 } Bitmap;
 
-typedef struct BitmapClearColor {
-    float red;
-    float green;
-    float blue;
-    float alpha;
-} BitmapClearColor;
-
 // NOTE: The pixels are all black, as the memory returned by the arena is zero-initialized.
 void bitmap_create(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height, BitmapFormat format);
 
 void bitmap_destroy(Bitmap& bitmap);
 
-void bitmap_clear(Bitmap& bitmap, BitmapClearColor clear_color);
+void bitmap_clear(Bitmap& bitmap, LinearColor clear_color);
 
 void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height);

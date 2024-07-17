@@ -41,20 +41,16 @@ void bitmap_destroy(Bitmap& bitmap)
     bitmap.pixels = nullptr;
 }
 
-void bitmap_clear(Bitmap& bitmap, BitmapClearColor clear_color)
+void bitmap_clear(Bitmap& bitmap, LinearColor clear_color)
 {
     const usize pixel_count = (usize)(bitmap.width) * (usize)(bitmap.height);
 
     if (bitmap.format == BITMAP_FORMAT_R8G8B8A8) {
-        const u8 red = (u8)(clear_color.red * 255.0F);
-        const u8 green = (u8)(clear_color.green * 255.0F);
-        const u8 blue = (u8)(clear_color.blue * 255.0F);
-        const u8 alpha = (u8)(clear_color.alpha * 255.0F);
-        const u32 pixel = (red << 24) | (green << 16) | (blue << 8) | (alpha << 0);
-
+        const u32 pixel_color = color_pack_linear_to_u32_bgra(clear_color);
         u32* current_pixel = (u32*)(bitmap.pixels);
+
         for (usize pixel_index = 0; pixel_index < pixel_count; ++pixel_index) {
-            *current_pixel = pixel;
+            *current_pixel = pixel_color;
             ++current_pixel;
         }
     }
