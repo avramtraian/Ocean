@@ -51,6 +51,7 @@ set(OCEAN_PLATFORM_SOURCE_FILES
     Platform/Memory.h
     Platform/Window.h
     Platform/Windows/WindowsEntryPoint.h
+    Platform/Windows/WindowsHeaders.h
     Platform/Windows/WindowsMemory.cpp
     Platform/Windows/WindowsWindow.cpp
 )

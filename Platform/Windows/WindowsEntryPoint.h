@@ -6,14 +6,7 @@
 #pragma once
 
 #include <Core/Defines.h>
-
-#if !OCEAN_PLATFORM_WINDOWS
-#    error Trying to include the Windows headers but they are not available!
-#endif // OCEAN_PLATFORM_WINDOWS
-
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <Windows.h>
+#include <Platform/Windows/WindowsHeaders.h>
 
 INT WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 {

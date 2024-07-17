@@ -6,15 +6,8 @@
 #include <Core/Assertion.h>
 #include <Core/Memory/Arena.h>
 #include <Platform/Window.h>
+#include <Platform/Windows/WindowsHeaders.h>
 #include <cstdio>
-
-#if !OCEAN_PLATFORM_WINDOWS
-#    error Trying to include the Windows headers but they are not available!
-#endif // OCEAN_PLATFORM_WINDOWS
-
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <Windows.h>
 
 struct WindowsWindow {
     HWND handle { nullptr };
