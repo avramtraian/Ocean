@@ -70,3 +70,16 @@ void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height)
     bitmap_destroy(bitmap);
     bitmap_create(bitmap, arena, width, height, format);
 }
+
+ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset)
+{
+    VERIFY(bitmap->pixels);
+
+    if (bitmap->format == BITMAP_FORMAT_B8G8R8A8) {
+        u32* bgra_pixels = (u32*)bitmap->pixels;
+        return (ReadWriteBytes)(bgra_pixels + x_offset + y_offset * bitmap->width);
+    }
+
+    VERIFY_NOT_REACHED;
+    return nullptr;
+}

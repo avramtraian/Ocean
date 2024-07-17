@@ -32,3 +32,5 @@ void bitmap_destroy(Bitmap& bitmap);
 void bitmap_clear(Bitmap& bitmap, LinearColor clear_color);
 
 void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height);
+
+ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset);
