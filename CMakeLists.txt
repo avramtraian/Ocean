@@ -52,10 +52,12 @@ set(OCEAN_EDITOR_SOURCE_FILES
 
 set(OCEAN_PLATFORM_SOURCE_FILES
     Platform/Memory.h
+    Platform/OffscreenBitmap.h
     Platform/Window.h
     Platform/Windows/WindowsEntryPoint.h
     Platform/Windows/WindowsHeaders.h
     Platform/Windows/WindowsMemory.cpp
+    Platform/Windows/WindowsOffscreenBitmap.cpp
     Platform/Windows/WindowsWindow.cpp
 )
 
