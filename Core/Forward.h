@@ -7,3 +7,5 @@
 
 struct LinearColor;
 struct LinearArena;
+struct Vector2i;
+struct Vector2u;
