@@ -5,6 +5,7 @@ Checks: >
   -readability-avoid-unconditional-preprocessor-if,
   -readability-braces-around-statements,
   -readability-function-cognitive-complexity,
+  -readability-identifier-length,
   -readability-implicit-bool-conversion,
   -readability-magic-numbers,
   -readability-named-parameter,
