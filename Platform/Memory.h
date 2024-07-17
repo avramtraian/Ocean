@@ -8,5 +8,5 @@
 #include <Core/Types.h>
 
 // Reserved for large allocations. Use an allocator implemented in the Core module for general purpose allocations.
-void* platform_memory_allocate(usize byte_count);
+ReadWriteBytes platform_memory_allocate(usize byte_count);
 void platform_memory_release(void* memory_block, usize byte_count);

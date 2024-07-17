@@ -7,14 +7,14 @@
 #include <Platform/Memory.h>
 #include <Platform/Windows/WindowsHeaders.h>
 
-void* platform_memory_allocate(usize byte_count)
+ReadWriteBytes platform_memory_allocate(usize byte_count)
 {
     if (byte_count == 0)
         return nullptr;
 
     void* memory_block = VirtualAlloc(nullptr, byte_count, MEM_COMMIT, PAGE_READWRITE);
     VERIFY(memory_block);
-    return memory_block;
+    return static_cast<ReadWriteBytes>(memory_block);
 }
 
 void platform_memory_release(void* memory_block, usize byte_count)
