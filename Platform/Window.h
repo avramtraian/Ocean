@@ -16,6 +16,8 @@ void platform_window_destroy(Window* window);
 
 bool platform_window_get_message(Window window);
 
+void* platform_window_native_handle(Window window);
+
 u32 platform_window_width(Window window);
 u32 platform_window_height(Window window);
 i32 platform_window_position_x(Window window);

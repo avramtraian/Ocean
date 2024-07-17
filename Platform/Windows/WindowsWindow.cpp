@@ -85,6 +85,13 @@ bool platform_window_get_message(Window window)
     return should_contiune_to_run;
 }
 
+void* platform_window_native_handle(Window window)
+{
+    const WindowsWindow* windows_window = (WindowsWindow*)(window);
+    VERIFY(windows_window->handle);
+    return windows_window->handle;
+}
+
 u32 platform_window_width(Window window)
 {
     const WindowsWindow* windows_window = (WindowsWindow*)(window);
