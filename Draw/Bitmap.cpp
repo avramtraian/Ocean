@@ -19,15 +19,20 @@ static usize bytes_per_pixel_from_bitmap_format(BitmapFormat format)
 
 void bitmap_create(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height, BitmapFormat format)
 {
-    VERIFY(!bitmap.pixels);
+    const usize bitmap_byte_count = width * height * bytes_per_pixel_from_bitmap_format(format);
+    ReadWriteBytes pixels = (ReadWriteBytes)(core_linear_arena_allocate(arena, bitmap_byte_count));
+    bitmap_create_from_memory(&bitmap, width, height, format, pixels);
+}
+
+void bitmap_create_from_memory(Bitmap* bitmap, u32 width, u32 height, BitmapFormat format, ReadWriteBytes pixels)
+{
+    VERIFY(!bitmap->pixels);
     VERIFY(width > 0 && height > 0);
 
-    bitmap.width = width;
-    bitmap.height = height;
-    bitmap.format = format;
-
-    const usize bitmap_byte_count = width * height * bytes_per_pixel_from_bitmap_format(format);
-    bitmap.pixels = (ReadWriteBytes)(core_linear_arena_allocate(arena, bitmap_byte_count));
+    bitmap->width = width;
+    bitmap->height = height;
+    bitmap->format = format;
+    bitmap->pixels = pixels;
 }
 
 void bitmap_destroy(Bitmap& bitmap)

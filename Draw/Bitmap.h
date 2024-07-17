@@ -25,6 +25,8 @@ typedef struct Bitmap {
 // NOTE: The pixels are all black, as the memory returned by the arena is zero-initialized.
 void bitmap_create(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height, BitmapFormat format);
 
+void bitmap_create_from_memory(Bitmap* bitmap, u32 width, u32 height, BitmapFormat format, ReadWriteBytes pixels);
+
 void bitmap_destroy(Bitmap& bitmap);
 
 void bitmap_clear(Bitmap& bitmap, LinearColor clear_color);
