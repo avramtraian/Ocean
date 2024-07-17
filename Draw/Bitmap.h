@@ -12,6 +12,7 @@
 enum BitmapFormatEnum {
     BITMAP_FORMAT_UNKNOWN = 0,
     BITMAP_FORMAT_B8G8R8A8,
+    BITMAP_FORMAT_R8,
 };
 typedef u8 BitmapFormat;
 
@@ -37,9 +38,14 @@ void bitmap_destroy(Bitmap& bitmap);
 
 void bitmap_clear(Bitmap& bitmap, LinearColor clear_color);
 
+// NOTE: The pixels will not be preserved in any way.
 void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height);
 
 // NOTE: The bitmaps must have the same dimensions and format, otherwise an assert will be triggered.
 void bitmap_copy(Bitmap* dst_bitmap, const Bitmap* src_bitmap, BitmapFlip flip = BITMAP_FLIP_NONE);
+
+usize bitmap_pixels_byte_count(const Bitmap* bitmap);
+
+usize bitmap_pixels_row_byte_count(const Bitmap* bitmap);
 
 ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset);

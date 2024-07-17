@@ -5,6 +5,7 @@
 
 #include <Core/Assertion.h>
 #include <Core/Math/MathUtils.h>
+#include <Core/Memory/MemoryOperations.h>
 #include <Draw/Bitmap.h>
 #include <Draw/Painter.h>
 
@@ -54,6 +55,15 @@ void painter_draw_full_opaque_quad(Bitmap* bitmap, Rect quad, LinearColor color)
                 *row_pixels = pixel_color;
                 ++row_pixels;
             }
+        }
+    }
+    else if (bitmap->format == BITMAP_FORMAT_R8) {
+        const usize row_byte_count = bitmap_pixels_row_byte_count(bitmap);
+        ReadWriteBytes row = bitmap_address_of_pixel(bitmap, quad.offset.x, quad.offset.y);
+
+        for (usize row_index = 0; row_index < quad.extent.y; ++row_index) {
+            set_memory(row, color.red, quad.extent.x);
+            row += row_byte_count;
         }
     }
     else {

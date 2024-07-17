@@ -12,6 +12,7 @@ static usize bytes_per_pixel_from_bitmap_format(BitmapFormat format)
 {
     switch (format) {
         case BITMAP_FORMAT_B8G8R8A8: return 4;
+        case BITMAP_FORMAT_R8: return 1;
     }
 
     VERIFY_NOT_REACHED;
@@ -20,7 +21,7 @@ static usize bytes_per_pixel_from_bitmap_format(BitmapFormat format)
 
 void bitmap_create(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height, BitmapFormat format)
 {
-    const usize bitmap_byte_count = width * height * bytes_per_pixel_from_bitmap_format(format);
+    const usize bitmap_byte_count = (usize)width * (usize)height * bytes_per_pixel_from_bitmap_format(format);
     ReadWriteBytes pixels = (ReadWriteBytes)(core_linear_arena_allocate(arena, bitmap_byte_count));
     bitmap_create_from_memory(&bitmap, width, height, format, pixels);
 }
@@ -60,6 +61,10 @@ void bitmap_clear(Bitmap& bitmap, LinearColor clear_color)
             ++current_pixel;
         }
     }
+    else if (bitmap.format == BITMAP_FORMAT_R8) {
+        const u8 pixel_color = clear_color.red;
+        set_memory(bitmap.pixels, pixel_color, bitmap_pixels_byte_count(&bitmap));
+    }
     else {
         VERIFY_NOT_REACHED;
     }
@@ -82,18 +87,17 @@ void bitmap_copy(Bitmap* dst_bitmap, const Bitmap* src_bitmap, BitmapFlip flip /
         return;
 
     if (flip == BITMAP_FLIP_NONE) {
-        const usize bitmap_byte_count = (usize)dst_bitmap->width * (usize)dst_bitmap->height * bytes_per_pixel_from_bitmap_format(dst_bitmap->format);
-        copy_memory(dst_bitmap->pixels, src_bitmap->pixels, bitmap_byte_count);
+        copy_memory(dst_bitmap->pixels, src_bitmap->pixels, bitmap_pixels_byte_count(dst_bitmap));
     }
     else if (flip == BITMAP_FLIP_HORIZONTAL) {
-        const usize row_offset = (usize)dst_bitmap->width * bytes_per_pixel_from_bitmap_format(dst_bitmap->format);
+        const usize row_byte_count = bitmap_pixels_row_byte_count(dst_bitmap);
         ReadWriteBytes dst_row = bitmap_address_of_pixel(dst_bitmap, 0, 0);
         ReadonlyBytes src_row = bitmap_address_of_pixel(src_bitmap, 0, src_bitmap->height - 1);
 
         for (u32 row_index = 0; row_index < dst_bitmap->height; ++row_index) {
-            copy_memory(dst_row, src_row, row_offset);
-            dst_row += row_offset;
-            src_row -= row_offset;
+            copy_memory(dst_row, src_row, row_byte_count);
+            dst_row += row_byte_count;
+            src_row -= row_byte_count;
         }
     }
     else {
@@ -101,9 +105,20 @@ void bitmap_copy(Bitmap* dst_bitmap, const Bitmap* src_bitmap, BitmapFlip flip /
     }
 }
 
+usize bitmap_pixels_byte_count(const Bitmap* bitmap)
+{
+    return bitmap_pixels_row_byte_count(bitmap) * (usize)bitmap->height;
+}
+
+usize bitmap_pixels_row_byte_count(const Bitmap* bitmap)
+{
+    return (usize)bitmap->width * bytes_per_pixel_from_bitmap_format(bitmap->format);
+}
+
 ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset)
 {
     VERIFY(bitmap->pixels);
+    VERIFY(x_offset < bitmap->width && y_offset < bitmap->height);
 
     const usize bytes_per_pixel = bytes_per_pixel_from_bitmap_format(bitmap->format);
     return bitmap->pixels + (x_offset + y_offset * bitmap->width) * bytes_per_pixel;
