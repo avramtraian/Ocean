@@ -5,6 +5,7 @@
 
 #include <Core/Assertion.h>
 #include <Core/Memory/Arena.h>
+#include <Core/Memory/MemoryOperations.h>
 #include <Draw/Bitmap.h>
 
 static usize bytes_per_pixel_from_bitmap_format(BitmapFormat format)
@@ -69,6 +70,35 @@ void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height)
     const BitmapFormat format = bitmap.format;
     bitmap_destroy(bitmap);
     bitmap_create(bitmap, arena, width, height, format);
+}
+
+void bitmap_copy(Bitmap* dst_bitmap, const Bitmap* src_bitmap, BitmapFlip flip /*= BITMAP_FLIP_NONE*/)
+{
+    VERIFY(dst_bitmap->width == src_bitmap->width);
+    VERIFY(dst_bitmap->height == src_bitmap->height);
+    VERIFY(dst_bitmap->format == src_bitmap->format);
+
+    if (dst_bitmap->width == 0 || dst_bitmap->height == 0)
+        return;
+
+    if (flip == BITMAP_FLIP_NONE) {
+        const usize bitmap_byte_count = (usize)dst_bitmap->width * (usize)dst_bitmap->height * bytes_per_pixel_from_bitmap_format(dst_bitmap->format);
+        copy_memory(dst_bitmap->pixels, src_bitmap->pixels, bitmap_byte_count);
+    }
+    else if (flip == BITMAP_FLIP_HORIZONTAL) {
+        const usize row_offset = (usize)dst_bitmap->width * bytes_per_pixel_from_bitmap_format(dst_bitmap->format);
+        ReadWriteBytes dst_row = bitmap_address_of_pixel(dst_bitmap, 0, 0);
+        ReadonlyBytes src_row = bitmap_address_of_pixel(src_bitmap, 0, src_bitmap->height - 1);
+
+        for (u32 row_index = 0; row_index < dst_bitmap->height; ++row_index) {
+            copy_memory(dst_row, src_row, row_offset);
+            dst_row += row_offset;
+            src_row -= row_offset;
+        }
+    }
+    else {
+        VERIFY_NOT_REACHED;
+    }
 }
 
 ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset)

@@ -15,6 +15,12 @@ enum BitmapFormatEnum {
 };
 typedef u8 BitmapFormat;
 
+enum BitmapFlipEnum {
+    BITMAP_FLIP_NONE = 0,
+    BITMAP_FLIP_HORIZONTAL,
+};
+typedef u8 BitmapFlip;
+
 typedef struct Bitmap {
     u32 width;
     u32 height;
@@ -32,5 +38,8 @@ void bitmap_destroy(Bitmap& bitmap);
 void bitmap_clear(Bitmap& bitmap, LinearColor clear_color);
 
 void bitmap_resize(Bitmap& bitmap, LinearArena& arena, u32 width, u32 height);
+
+// NOTE: The bitmaps must have the same dimensions and format, otherwise an assert will be triggered.
+void bitmap_copy(Bitmap* dst_bitmap, const Bitmap* src_bitmap, BitmapFlip flip = BITMAP_FLIP_NONE);
 
 ReadWriteBytes bitmap_address_of_pixel(const Bitmap* bitmap, u32 x_offset, u32 y_offset);
