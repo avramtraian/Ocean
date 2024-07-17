@@ -10,7 +10,7 @@
 static usize bytes_per_pixel_from_bitmap_format(BitmapFormat format)
 {
     switch (format) {
-        case BITMAP_FORMAT_R8G8B8A8: return 4;
+        case BITMAP_FORMAT_B8G8R8A8: return 4;
     }
 
     VERIFY_NOT_REACHED;
@@ -45,7 +45,7 @@ void bitmap_clear(Bitmap& bitmap, LinearColor clear_color)
 {
     const usize pixel_count = (usize)(bitmap.width) * (usize)(bitmap.height);
 
-    if (bitmap.format == BITMAP_FORMAT_R8G8B8A8) {
+    if (bitmap.format == BITMAP_FORMAT_B8G8R8A8) {
         const u32 pixel_color = color_pack_linear_to_u32_bgra(clear_color);
         u32* current_pixel = (u32*)(bitmap.pixels);
 

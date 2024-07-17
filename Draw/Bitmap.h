@@ -11,7 +11,7 @@
 
 enum BitmapFormatEnum {
     BITMAP_FORMAT_UNKNOWN = 0,
-    BITMAP_FORMAT_R8G8B8A8,
+    BITMAP_FORMAT_B8G8R8A8,
 };
 typedef u8 BitmapFormat;
 
