@@ -35,6 +35,7 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Math/Color.cpp
     Core/Math/Color.h
     Core/Math/MathUtils.h
+    Core/Math/Rect.h
     Core/Math/Vector.h
     Core/Memory/Arena.cpp
     Core/Memory/Arena.h
