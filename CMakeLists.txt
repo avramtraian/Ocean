@@ -46,6 +46,8 @@ set(OCEAN_CORE_SOURCE_FILES
 )
 
 set(OCEAN_DRAW_SOURCE_FILES
+    Draw/Bitmap.h
+    Draw/Software/SoftwareBitmap.cpp
 )
 
 set(OCEAN_EDITOR_SOURCE_FILES
