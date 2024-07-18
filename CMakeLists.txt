@@ -53,6 +53,9 @@ set(OCEAN_DRAW_SOURCE_FILES
 )
 
 set(OCEAN_EDITOR_SOURCE_FILES
+    Editor/Settings.cpp
+    Editor/Settings.h
+    Editor/State.h
 )
 
 set(OCEAN_PLATFORM_SOURCE_FILES
