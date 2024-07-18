@@ -67,13 +67,17 @@
 // CONFIGURATION DETECTION.
 //==========================
 
-#ifdef _DEBUG
-#    define OCEAN_CONFIGURATION_DEBUG   1
+#ifndef OCEAN_CONFIGURATION_DEBUG
+#    define OCEAN_CONFIGURATION_DEBUG 0
+#endif // OCEAN_CONFIGURATION_DEBUG
+
+#ifndef OCEAN_CONFIGURATION_RELEASE
 #    define OCEAN_CONFIGURATION_RELEASE 0
-#else
-#    define OCEAN_CONFIGURATION_DEBUG   0
-#    define OCEAN_CONFIGURATION_RELEASE 1
-#endif // _DEBUG
+#endif // OCEAN_CONFIGURATION_RELEASE
+
+#if !OCEAN_CONFIGURATION_DEBUG && !OCEAN_CONFIGURATION_RELEASE
+#    error Invalid build configuration!
+#endif // Any configuration.
 
 //===================================
 // COMPILER-SPECIFIC UTILITY MACROS.
