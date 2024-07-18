@@ -39,6 +39,7 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Math/Vector.h
     Core/Memory/Arena.cpp
     Core/Memory/Arena.h
+    Core/Memory/MemorySpan.h
     Core/Memory/MemoryOperations.cpp
     Core/Memory/MemoryOperations.h
     Core/Types.h
