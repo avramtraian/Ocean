@@ -8,34 +8,45 @@
 #include <Core/Assertion.h>
 #include <Core/Types.h>
 
-inline u32 min_u32(u32 a, u32 b)
-{
-    return (a < b) ? a : b;
-}
+#define OCEAN_MIN_FUNCTION_IMPLEMENTATION(type) \
+    inline type min_##type(type a, type b)      \
+    {                                           \
+        return (a < b) ? a : b;                 \
+    }
 
-inline u32 max_u32(u32 a, u32 b)
-{
-    return (a > b) ? a : b;
-}
+#define OCEAN_MAX_FUNCTION_IMPLEMENTATION(type) \
+    inline type max_##type(type a, type b)      \
+    {                                           \
+        return (a > b) ? a : b;                 \
+    }
 
-inline i32 min_i32(i32 a, i32 b)
-{
-    return (a < b) ? a : b;
-}
+#define OCEAN_CLAMP_FUNCTION_IMPLEMENTATION(type)                        \
+    inline type clamp_##type(type value, type min_bound, type max_bound) \
+    {                                                                    \
+        VERIFY(min_bound <= max_bound);                                  \
+        return min_##type(max_##type(value, min_bound), max_bound);      \
+    }
 
-inline i32 max_i32(i32 a, i32 b)
-{
-    return (a > b) ? a : b;
-}
+#define OCEAN_DEFINE_MATH_FUNCTIONS_FOR_EACH_TYPE(function_macro) \
+    function_macro(u8);                                           \
+    function_macro(u16);                                          \
+    function_macro(u32);                                          \
+    function_macro(u64);                                          \
+    function_macro(i8);                                           \
+    function_macro(i16);                                          \
+    function_macro(i32);                                          \
+    function_macro(i64);                                          \
+    function_macro(float);                                        \
+    function_macro(double);                                       \
+    function_macro(usize);                                        \
+    function_macro(ssize);
 
-inline u32 clamp_u32(u32 value, u32 min_bound, u32 max_bound)
-{
-    VERIFY(min_bound <= max_bound);
-    return min_u32(max_u32(value, min_bound), max_bound);
-}
+OCEAN_DEFINE_MATH_FUNCTIONS_FOR_EACH_TYPE(OCEAN_MIN_FUNCTION_IMPLEMENTATION)
+OCEAN_DEFINE_MATH_FUNCTIONS_FOR_EACH_TYPE(OCEAN_MAX_FUNCTION_IMPLEMENTATION)
+OCEAN_DEFINE_MATH_FUNCTIONS_FOR_EACH_TYPE(OCEAN_CLAMP_FUNCTION_IMPLEMENTATION)
 
-inline i32 clamp_i32(i32 value, i32 min_bound, i32 max_bound)
-{
-    VERIFY(min_bound <= max_bound);
-    return min_i32(max_i32(value, min_bound), max_bound);
-}
+#undef OCEAN_DEFINE_MATH_FUNCTIONS_FOR_EACH_TYPE
+
+#undef OCEAN_MIN_FUNCTION_IMPLEMENTATION
+#undef OCEAN_MAX_FUNCTION_IMPLEMENTATION
+#undef OCEAN_CLAMP_FUNCTION_IMPLEMENTATION
