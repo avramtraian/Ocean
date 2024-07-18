@@ -41,3 +41,14 @@ inline LinearColor color_unpack_linear_from_u32_bgra(u32 packed)
     const LinearColor* linear = (const LinearColor*)(&packed);
     return *linear;
 }
+
+inline LinearColor color_blend_linear_colors(LinearColor a, LinearColor b, float percentage)
+{
+    const float one_minus_percentage = 1.0F - percentage;
+    LinearColor blended;
+    blended.blue = a.blue * one_minus_percentage + b.blue * percentage;
+    blended.green = a.green * one_minus_percentage + b.green * percentage;
+    blended.red = a.red * one_minus_percentage + b.red * percentage;
+    blended.alpha = a.alpha * one_minus_percentage + b.alpha * percentage;
+    return blended;
+}
