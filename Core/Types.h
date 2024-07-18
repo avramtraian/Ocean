@@ -30,4 +30,5 @@ using ReadonlyBytes = ReadonlyByte*;
 using WriteonlyBytes = WriteonlyByte*;
 using ReadWriteBytes = ReadWriteByte*;
 
-#define INVALID_SIZE ((usize)-1)
+#define INVALID_SIZE   ((usize)-1)
+#define INVALID_HANDLE ((void*)0)
