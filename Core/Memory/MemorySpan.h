@@ -25,7 +25,7 @@ inline ReadonlyByteSpan readonly_byte_span(ReadonlyBytes bytes, usize count)
     return byte_span;
 }
 
-inline ReadWriteByteSpan readonly_byte_span(ReadWriteBytes bytes, usize count)
+inline ReadWriteByteSpan read_write_byte_span(ReadWriteBytes bytes, usize count)
 {
     ReadWriteByteSpan byte_span;
     byte_span.bytes = bytes;
