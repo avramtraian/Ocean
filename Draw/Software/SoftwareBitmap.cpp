@@ -16,19 +16,19 @@ typedef struct SoftwareBitmap {
 
 Bitmap bitmap_create(LinearArena* arena, u32 width, u32 height, BitmapFormat format)
 {
-    SoftwareBitmap* bitmap = (SoftwareBitmap*)core_linear_arena_allocate(*arena, sizeof(SoftwareBitmap));
+    SoftwareBitmap* bitmap = (SoftwareBitmap*)core_linear_arena_allocate(arena, sizeof(SoftwareBitmap));
 
     bitmap->width = width;
     bitmap->height = height;
     bitmap->format = format;
-    bitmap->data = (ReadWriteBytes)core_linear_arena_allocate(*arena, bitmap_get_byte_count(bitmap));
+    bitmap->data = (ReadWriteBytes)core_linear_arena_allocate(arena, bitmap_get_byte_count(bitmap));
 
     return bitmap;
 }
 
 Bitmap bitmap_create_from_memory(LinearArena* arena, u32 width, u32 height, BitmapFormat format, ReadWriteByteSpan memory_buffer)
 {
-    SoftwareBitmap* bitmap = (SoftwareBitmap*)core_linear_arena_allocate(*arena, sizeof(SoftwareBitmap));
+    SoftwareBitmap* bitmap = (SoftwareBitmap*)core_linear_arena_allocate(arena, sizeof(SoftwareBitmap));
 
     bitmap->width = width;
     bitmap->height = height;
@@ -162,7 +162,7 @@ void bitmap_resize(Bitmap bitmap_handle, LinearArena* arena, u32 new_width, u32 
     SoftwareBitmap* bitmap = (SoftwareBitmap*)bitmap_handle;
     bitmap->width = new_width;
     bitmap->height = new_height;
-    bitmap->data = (ReadWriteBytes)core_linear_arena_allocate(*arena, bitmap_get_byte_count(bitmap_handle));
+    bitmap->data = (ReadWriteBytes)core_linear_arena_allocate(arena, bitmap_get_byte_count(bitmap_handle));
 }
 
 void bitmap_resize_from_memory(Bitmap bitmap_handle, u32 new_width, u32 new_height, ReadWriteByteSpan new_memory_buffer)

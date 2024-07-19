@@ -18,7 +18,7 @@ typedef struct WindowsSoftwareOffscreenBitmap {
 OffscreenBitmap offscreen_bitmap_create(LinearArena* arena, Window window)
 {
     WindowsSoftwareOffscreenBitmap* offscreen_bitmap =
-        (WindowsSoftwareOffscreenBitmap*)core_linear_arena_allocate(*arena, sizeof(WindowsSoftwareOffscreenBitmap));
+        (WindowsSoftwareOffscreenBitmap*)core_linear_arena_allocate(arena, sizeof(WindowsSoftwareOffscreenBitmap));
 
     const u32 window_width = platform_window_width(window);
     const u32 window_height = platform_window_height(window);

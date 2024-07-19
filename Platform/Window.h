@@ -11,7 +11,7 @@
 // Opaque handle to a platform-specific window object.
 using Window = void*;
 
-Window platform_window_create(LinearArena& arena);
+Window platform_window_create(LinearArena* arena);
 void platform_window_destroy(Window* window);
 
 bool platform_window_get_message(Window window);

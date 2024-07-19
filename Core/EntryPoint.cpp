@@ -13,9 +13,9 @@
 static i32 guarded_main()
 {
     LinearArena arena = {};
-    core_linear_arena_initialize(arena, 16 * MiB);
+    core_linear_arena_initialize(&arena, 16 * MiB);
 
-    Window window = platform_window_create(arena);
+    Window window = platform_window_create(&arena);
     OffscreenBitmap offscreen_bitmap = offscreen_bitmap_create(&arena, window);
 
     EditorState editor_state;
@@ -33,7 +33,7 @@ static i32 guarded_main()
     offscreen_bitmap_destroy(&offscreen_bitmap);
     platform_window_destroy(&window);
 
-    core_linear_arena_destroy(arena);
+    core_linear_arena_destroy(&arena);
     return 0;
 }
 

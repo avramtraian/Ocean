@@ -14,7 +14,7 @@ typedef struct SoftwareBrush {
 
 Brush brush_create(LinearArena* arena)
 {
-    SoftwareBrush* brush = (SoftwareBrush*)core_linear_arena_allocate(*arena, sizeof(SoftwareBrush));
+    SoftwareBrush* brush = (SoftwareBrush*)core_linear_arena_allocate(arena, sizeof(SoftwareBrush));
     return brush;
 }
 

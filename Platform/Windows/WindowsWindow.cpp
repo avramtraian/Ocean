@@ -8,13 +8,13 @@
 #include <Platform/Window.h>
 #include <Platform/Windows/WindowsHeaders.h>
 
-struct WindowsWindow {
+typedef struct WindowsWindow {
     HWND handle { nullptr };
-};
+} WindowsWindow;
 
 static LRESULT platform_windows_window_procedure(HWND, UINT, WPARAM, LPARAM);
 
-Window platform_window_create(LinearArena& arena)
+Window platform_window_create(LinearArena* arena)
 {
     constexpr const char* window_class_name = "OceanWindowClass";
 
