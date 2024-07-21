@@ -38,15 +38,15 @@ FileReadResult filesystem_read_entire_file(const char* filename, ReadWriteByteSp
         return result;
     }
 
-    if (file_size.QuadPart > read_buffer.count) {
+    if ((usize)file_size.QuadPart > read_buffer.count) {
         CloseHandle(file_handle);
         result.return_code = FILE_READ_RETURN_CODE_BUFFER_TOO_SMALL;
         return result;
     }
 
     usize bytes_read_until_now = 0;
-    while (bytes_read_until_now < file_size.QuadPart) {
-        const u32 bytes_to_read = min_usize(file_size.QuadPart - bytes_read_until_now, (DWORD)(-1));
+    while (bytes_read_until_now < (usize)file_size.QuadPart) {
+        const DWORD bytes_to_read = (DWORD)min_usize(file_size.QuadPart - bytes_read_until_now, (DWORD)(-1));
         DWORD bytes_read;
         if (!ReadFile(file_handle, read_buffer.bytes, bytes_to_read, &bytes_read, NULL))
             break;

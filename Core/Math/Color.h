@@ -46,9 +46,9 @@ inline LinearColor color_blend_linear_colors(LinearColor a, LinearColor b, float
 {
     const float one_minus_percentage = 1.0F - percentage;
     LinearColor blended;
-    blended.blue = a.blue * one_minus_percentage + b.blue * percentage;
-    blended.green = a.green * one_minus_percentage + b.green * percentage;
-    blended.red = a.red * one_minus_percentage + b.red * percentage;
-    blended.alpha = a.alpha * one_minus_percentage + b.alpha * percentage;
+    blended.blue = (u32)(a.blue * one_minus_percentage + b.blue * percentage);
+    blended.green = (u32)(a.green * one_minus_percentage + b.green * percentage);
+    blended.red = (u32)(a.red * one_minus_percentage + b.red * percentage);
+    blended.alpha = (u32)(a.alpha * one_minus_percentage + b.alpha * percentage);
     return blended;
 }
