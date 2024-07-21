@@ -32,6 +32,8 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Defines.h
     Core/EntryPoint.cpp
     Core/Forward.h
+    Core/Log.cpp
+    Core/Log.h
     Core/Math/Color.cpp
     Core/Math/Color.h
     Core/Math/MathUtils.h
