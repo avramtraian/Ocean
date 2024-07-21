@@ -119,7 +119,7 @@ void brush_draw_font_bitmap(Brush brush_handle, Bitmap bitmap_handle, Bitmap fon
             for (usize offset_y = 0; offset_y < font_bitmap_height; ++offset_y) {
                 for (usize offset_x = 0; offset_x < font_bitmap_width; ++offset_x) {
                     const LinearColor current_color = color_unpack_linear_from_u32_bgra(*dst_current_pixel);
-                    const LinearColor blended_color = color_blend_linear_colors(current_color, font_color, *src_current_pixel);
+                    const LinearColor blended_color = color_blend_linear_colors(current_color, font_color, *src_current_pixel / 255.0F);
                     *dst_current_pixel = color_pack_linear_to_u32_bgra(blended_color);
 
                     ++dst_current_pixel;
