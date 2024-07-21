@@ -125,8 +125,31 @@ void bitmap_copy(Bitmap destination_bitmap_handle, Bitmap source_bitmap_handle, 
     VERIFY(destination_bitmap->height == source_bitmap->height);
     VERIFY(destination_bitmap->format == source_bitmap->format);
 
-    const usize bitmap_byte_count = (usize)destination_bitmap->height * bitmap_get_pitch(destination_bitmap_handle);
-    copy_memory(destination_bitmap->data, source_bitmap->data, bitmap_byte_count);
+    if (destination_bitmap->width == 0 || destination_bitmap->height == 0)
+        return;
+
+    if (flip_bits == BITMAP_FLIP_NONE) {
+        copy_memory(destination_bitmap->data, source_bitmap->data, bitmap_get_byte_count(destination_bitmap_handle));
+    }
+    else if ((flip_bits & BITMAP_FLIP_VERTICAL) && (flip_bits & BITMAP_FLIP_HORIZONTAL)) {
+        // TODO: Implement me!
+        VERIFY_NOT_REACHED;
+    }
+    else if (flip_bits & BITMAP_FLIP_VERTICAL) {
+        ReadWriteBytes dst_row = bitmap_get_pixel_address(destination_bitmap_handle, 0, 0);
+        ReadWriteBytes src_row = bitmap_get_pixel_address(source_bitmap_handle, 0, source_bitmap->height - 1);
+        const usize pitch = bitmap_get_pitch(destination_bitmap_handle);
+
+        for (u32 offset_y = 0; offset_y < destination_bitmap->height; ++offset_y) {
+            copy_memory(dst_row, src_row, pitch);
+            dst_row += pitch;
+            src_row -= pitch;
+        }
+    }
+    else if (flip_bits & BITMAP_FLIP_HORIZONTAL) {
+        // TODO: Implement me!
+        VERIFY_NOT_REACHED;
+    }
 }
 
 void bitmap_clear(Bitmap bitmap_handle, LinearColor clear_color /*= linear_color(0, 0, 0, 0)*/)
