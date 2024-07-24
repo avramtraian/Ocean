@@ -37,6 +37,13 @@ void editor_on_update(EditorState* state)
     clear.clear_color = linear_color(255, 0, 0);
     draw_list_encode_instruction_clear(&state->draw_list, &clear);
 
+    DrawInstructionPaintQuad paint_quad;
+    paint_quad.instruction_code = DRAW_INSTRUCTION_CODE_PAINT_QUAD;
+    paint_quad.target_bitmap = state->swapchain_bitmap;
+    paint_quad.quad_surface = rect(100, 100, 500, 500);
+    paint_quad.quad_color = linear_color(0, 0, 255);
+    draw_list_encode_instruction_paint_quad(&state->draw_list, &paint_quad);
+
     draw_list_execute_sync(&state->draw_list, state->graphics_context);
     draw_list_reset(&state->draw_list);
 
