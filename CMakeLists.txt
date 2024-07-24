@@ -48,10 +48,6 @@ set(OCEAN_CORE_SOURCE_FILES
 )
 
 set(OCEAN_DRAW_SOURCE_FILES
-    Draw/Bitmap.h
-    Draw/Brush.h
-    Draw/Software/SoftwareBitmap.cpp
-    Draw/Software/SoftwareBrush.cpp
 )
 
 set(OCEAN_EDITOR_SOURCE_FILES
@@ -63,13 +59,11 @@ set(OCEAN_EDITOR_SOURCE_FILES
 set(OCEAN_PLATFORM_SOURCE_FILES
     Platform/FileSystem.h
     Platform/Memory.h
-    Platform/OffscreenBitmap.h
     Platform/Window.h
     Platform/Windows/WindowsEntryPoint.h
     Platform/Windows/WindowsFileSystem.cpp
     Platform/Windows/WindowsHeaders.h
     Platform/Windows/WindowsMemory.cpp
-    Platform/Windows/WindowsSoftwareOffscreenBitmap.cpp
     Platform/Windows/WindowsWindow.cpp
 )
 
