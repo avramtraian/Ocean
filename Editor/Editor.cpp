@@ -93,6 +93,14 @@ void editor_on_update(EditorState* state)
     paint_quad.quad_color = linear_color(0, 0, 255);
     draw_list_encode_instruction_paint_quad(&state->draw_list, &paint_quad);
 
+    DrawInstructionPaintGlyph paint_glyph;
+    paint_glyph.instruction_code = DRAW_INSTRUCTION_CODE_PAINT_GLYPH;
+    paint_glyph.target_bitmap = state->swapchain_bitmap;
+    paint_glyph.glyph_bitmap = font_get_glyph(editor_get_font_from_id(state, EDITOR_FONT_ID_TEXT), 'A')->bitmap;
+    paint_glyph.glyph_offset = vec2i(700, 200);
+    paint_glyph.glyph_color = linear_color(0, 255, 0);
+    draw_list_encode_instruction_paint_glyph(&state->draw_list, &paint_glyph);
+
     draw_list_execute_sync(&state->draw_list, state->graphics_context);
     draw_list_reset(&state->draw_list);
 

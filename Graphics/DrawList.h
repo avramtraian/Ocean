@@ -14,6 +14,7 @@ enum DrawInstructionCodeEnum {
     DRAW_INSTRUCTION_CODE_NONE = 0,
     DRAW_INSTRUCTION_CODE_CLEAR,
     DRAW_INSTRUCTION_CODE_PAINT_QUAD,
+    DRAW_INSTRUCTION_CODE_PAINT_GLYPH,
 };
 typedef u8 DrawInstructionCode;
 
@@ -30,6 +31,15 @@ struct DrawInstructionPaintQuad {
     GraphicsBitmap target_bitmap;
     Rect quad_surface;
     LinearColor quad_color;
+};
+
+struct DrawInstructionPaintGlyph {
+    // NOTE: Should always be 'DRAW_INSTRUCTION_CODE_PAINT_GLYPH'.
+    DrawInstructionCode instruction_code;
+    GraphicsBitmap target_bitmap;
+    GraphicsBitmap glyph_bitmap;
+    Vector2i glyph_offset;
+    LinearColor glyph_color;
 };
 
 struct DrawList {
@@ -55,5 +65,6 @@ void draw_list_encode_instruction(DrawList* draw_list, DrawInstructionCode instr
 
 DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_CLEAR, DrawInstructionClear, clear);
 DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_PAINT_QUAD, DrawInstructionPaintQuad, paint_quad);
+DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_PAINT_GLYPH, DrawInstructionPaintGlyph, paint_glyph);
 
 #undef DEFINE_DRAW_LIST_ENCODE_INSTRUCTION

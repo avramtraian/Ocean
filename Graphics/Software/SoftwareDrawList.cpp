@@ -27,11 +27,16 @@ static usize get_draw_instruction_size(DrawInstructionCode instruction_code)
     switch (instruction_code) {
         case DRAW_INSTRUCTION_CODE_CLEAR: return sizeof(DrawInstructionClear);
         case DRAW_INSTRUCTION_CODE_PAINT_QUAD: return sizeof(DrawInstructionPaintQuad);
+        case DRAW_INSTRUCTION_CODE_PAINT_GLYPH: return sizeof(DrawInstructionPaintGlyph);
     }
 
     VERIFY_NOT_REACHED;
     return 0;
 }
+
+//========================================================
+// BEGIN --- DRAW INSTRUCTIONS EXECUTION IMPLEMENTATIONS.
+//========================================================
 
 static void execute_draw_instruction_clear(GraphicsContext, const DrawInstructionClear* instruction)
 {
@@ -112,6 +117,38 @@ static void execute_draw_instruction_paint_quad(GraphicsContext, const DrawInstr
     }
 }
 
+static void execute_draw_instruction_paint_glyph(GraphicsContext, const DrawInstructionPaintGlyph* instruction)
+{
+    const SoftwareGraphicsBitmap* target_bitmap = (const SoftwareGraphicsBitmap*)instruction->target_bitmap;
+    const SoftwareGraphicsBitmap* glyph_bitmap = (const SoftwareGraphicsBitmap*)instruction->glyph_bitmap;
+
+    VERIFY(target_bitmap->usage == GRAPHICS_BITMAP_USAGE_RENDER_TARGET || target_bitmap->usage == GRAPHICS_BITMAP_USAGE_SWAPCHAIN);
+    VERIFY(glyph_bitmap->usage == GRAPHICS_BITMAP_USAGE_FONT);
+
+    const Vector2i offset = instruction->glyph_offset;
+    VERIFY(0 <= offset.x && offset.x + glyph_bitmap->width <= target_bitmap->width);
+    VERIFY(0 <= offset.y && offset.y + glyph_bitmap->height <= target_bitmap->height);
+
+    u32* dst_pixel_iterator = (u32*)target_bitmap->data + ((usize)offset.x + (usize)offset.y * (usize)target_bitmap->width);
+    const u8* src_pixel_iterator = glyph_bitmap->data;
+    const usize dst_pixel_iterator_row_jump_count = target_bitmap->width - glyph_bitmap->width;
+
+    for (u32 y_offset = 0; y_offset < glyph_bitmap->height; ++y_offset) {
+        for (u32 x_offset = 0; x_offset < glyph_bitmap->width; ++x_offset) {
+            const float glyph_alpha = *src_pixel_iterator++ / 255.0F;
+            const LinearColor dst_color =
+                color_blend_linear_colors(color_unpack_linear_from_u32_bgra(*dst_pixel_iterator), instruction->glyph_color, glyph_alpha);
+            *dst_pixel_iterator++ = color_pack_linear_to_u32_bgra(dst_color);
+        }
+
+        dst_pixel_iterator += dst_pixel_iterator_row_jump_count;
+    }
+}
+
+//========================================================
+// END --- DRAW INSTRUCTIONS EXECUTION IMPLEMENTATIONS.
+//========================================================
+
 static usize draw_list_dispatch_instruction(GraphicsContext graphics_context, ReadonlyBytes instruction_data, usize instruction_data_max_size)
 {
     // NOTE: The first byte of any draw instruction represents the instruction code.
@@ -130,6 +167,11 @@ static usize draw_list_dispatch_instruction(GraphicsContext graphics_context, Re
 
         case DRAW_INSTRUCTION_CODE_PAINT_QUAD: {
             execute_draw_instruction_paint_quad(graphics_context, (const DrawInstructionPaintQuad*)instruction_data);
+            break;
+        }
+
+        case DRAW_INSTRUCTION_CODE_PAINT_GLYPH: {
+            execute_draw_instruction_paint_glyph(graphics_context, (const DrawInstructionPaintGlyph*)instruction_data);
             break;
         }
 
