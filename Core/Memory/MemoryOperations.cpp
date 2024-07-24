@@ -27,3 +27,15 @@ void zero_memory(void* destination, usize byte_count)
     // NOTE: Wrap around the 'set_memory' function.
     set_memory(destination, 0, byte_count);
 }
+
+void swap_memory(void* buffer_a, void* buffer_b, usize byte_count)
+{
+    ReadWriteBytes a = (ReadWriteBytes)buffer_a;
+    ReadWriteBytes b = (ReadWriteBytes)buffer_b;
+
+    for (usize byte_offset = 0; byte_offset < byte_count; ++byte_offset) {
+        const u8 temporary = *a;
+        *a++ = *b;
+        *b++ = temporary;
+    }
+}
