@@ -54,10 +54,13 @@ set(OCEAN_EDITOR_SOURCE_FILES
 
 set(OCEAN_GRAPHICS_SOURCE_FILES
     Graphics/DrawList.h
+    Graphics/Font.cpp
+    Graphics/Font.h
     Graphics/GraphicsContext.h
     Graphics/Software/SoftwareDrawList.cpp
     Graphics/Software/SoftwareGraphicsContext.cpp
     Graphics/Software/SoftwareGraphicsContext.h
+    Graphics/stb_truetype.h
 )
 
 set(OCEAN_PLATFORM_SOURCE_FILES
