@@ -6,12 +6,14 @@
 #pragma once
 
 #include <Core/Memory/Arena.h>
+#include <Graphics/DrawList.h>
 #include <Graphics/GraphicsContext.h>
 #include <Platform/Window.h>
 
 struct EditorState {
     GraphicsContext graphics_context;
     GraphicsBitmap swapchain_bitmap;
+    DrawList draw_list;
 };
 
 EditorState* editor_initialize(LinearArena* permanent_arena, Window window);
