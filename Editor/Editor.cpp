@@ -56,6 +56,7 @@ EditorState* editor_initialize(LinearArena* permanent_arena, Window window)
 
     state->graphics_context = graphics_context_create(permanent_arena, GRAPHICS_CONTEXT_TYPE_CPU, window);
     state->swapchain_bitmap = graphics_context_allocate_bitmap(state->graphics_context, permanent_arena, 0, 0, GRAPHICS_BITMAP_USAGE_SWAPCHAIN);
+    state->panel_bitmap = graphics_context_allocate_bitmap(state->graphics_context, permanent_arena, 1000, 1000, GRAPHICS_BITMAP_USAGE_RENDER_TARGET);
 
     ReadWriteByteSpan draw_list_bytecode_buffer;
     draw_list_bytecode_buffer.count = 4 * MiB;
@@ -72,6 +73,7 @@ void editor_shutdown(EditorState* state)
     editor_destroy_font_table(state);
 
     draw_list_destroy(&state->draw_list);
+    graphics_context_release_bitmap(state->graphics_context, &state->panel_bitmap);
     graphics_context_release_bitmap(state->graphics_context, &state->swapchain_bitmap);
     graphics_context_destroy(&state->graphics_context);
 
@@ -82,24 +84,31 @@ void editor_on_update(EditorState* state)
 {
     DrawInstructionClear clear;
     clear.instruction_code = DRAW_INSTRUCTION_CODE_CLEAR;
-    clear.target_bitmap = state->swapchain_bitmap;
+    clear.target_bitmap = state->panel_bitmap;
     clear.clear_color = linear_color(255, 0, 0);
     draw_list_encode_instruction_clear(&state->draw_list, &clear);
 
     DrawInstructionPaintQuad paint_quad;
     paint_quad.instruction_code = DRAW_INSTRUCTION_CODE_PAINT_QUAD;
-    paint_quad.target_bitmap = state->swapchain_bitmap;
+    paint_quad.target_bitmap = state->panel_bitmap;
     paint_quad.quad_surface = rect(100, 100, 500, 500);
     paint_quad.quad_color = linear_color(0, 0, 255);
     draw_list_encode_instruction_paint_quad(&state->draw_list, &paint_quad);
 
     DrawInstructionPaintGlyph paint_glyph;
     paint_glyph.instruction_code = DRAW_INSTRUCTION_CODE_PAINT_GLYPH;
-    paint_glyph.target_bitmap = state->swapchain_bitmap;
+    paint_glyph.target_bitmap = state->panel_bitmap;
     paint_glyph.glyph_bitmap = font_get_glyph(editor_get_font_from_id(state, EDITOR_FONT_ID_TEXT), 'A')->bitmap;
     paint_glyph.glyph_offset = vec2i(700, 200);
     paint_glyph.glyph_color = linear_color(0, 255, 0);
     draw_list_encode_instruction_paint_glyph(&state->draw_list, &paint_glyph);
+
+    DrawInstructionCopyBitmap copy_bitmap;
+    copy_bitmap.instruction_code = DRAW_INSTRUCTION_CODE_COPY_BITMAP;
+    copy_bitmap.destination_bitmap = state->swapchain_bitmap;
+    copy_bitmap.source_bitmap = state->panel_bitmap;
+    copy_bitmap.copy_offset = vec2i(100, 100);
+    draw_list_encode_instruction_copy_bitmap(&state->draw_list, &copy_bitmap);
 
     draw_list_execute_sync(&state->draw_list, state->graphics_context);
     draw_list_reset(&state->draw_list);

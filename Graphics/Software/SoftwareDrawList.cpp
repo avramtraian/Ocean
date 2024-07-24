@@ -26,6 +26,7 @@ static usize get_draw_instruction_size(DrawInstructionCode instruction_code)
 {
     switch (instruction_code) {
         case DRAW_INSTRUCTION_CODE_CLEAR: return sizeof(DrawInstructionClear);
+        case DRAW_INSTRUCTION_CODE_COPY_BITMAP: return sizeof(DrawInstructionCopyBitmap);
         case DRAW_INSTRUCTION_CODE_PAINT_QUAD: return sizeof(DrawInstructionPaintQuad);
         case DRAW_INSTRUCTION_CODE_PAINT_GLYPH: return sizeof(DrawInstructionPaintGlyph);
     }
@@ -61,6 +62,75 @@ static void execute_draw_instruction_clear(GraphicsContext, const DrawInstructio
 
         case GRAPHICS_BITMAP_USAGE_FONT: {
             set_memory(target_bitmap->data, instruction->clear_color.red, target_bitmap->pitch * (usize)target_bitmap->height);
+            break;
+        }
+
+        default: {
+            VERIFY_NOT_REACHED;
+            return;
+        }
+    }
+}
+
+// NOTE: Returns true if the operation is possible and has been executed.
+static bool try_to_copy_entire_bitmap(SoftwareGraphicsBitmap* dst_bitmap, const SoftwareGraphicsBitmap* src_bitmap, Vector2i copy_offset)
+{
+    // NOTE: Fast path when the entire bitmap is copied.
+    if (copy_offset.x == 0 && copy_offset.y == 0 && dst_bitmap->width == src_bitmap->width && dst_bitmap->height == src_bitmap->height) {
+        VERIFY(dst_bitmap->pitch == src_bitmap->pitch);
+        copy_memory(dst_bitmap->data, src_bitmap->data, src_bitmap->pitch * (usize)src_bitmap->height);
+        return true;
+    }
+
+    return false;
+}
+
+static void execute_draw_instruction_copy_bitmap(GraphicsContext, const DrawInstructionCopyBitmap* instruction)
+{
+    SoftwareGraphicsBitmap* destination_bitmap = (SoftwareGraphicsBitmap*)instruction->destination_bitmap;
+    const SoftwareGraphicsBitmap* source_bitmap = (const SoftwareGraphicsBitmap*)instruction->source_bitmap;
+    const Vector2i offset = instruction->copy_offset;
+
+    VERIFY(0 <= offset.x && offset.x + source_bitmap->width <= destination_bitmap->width);
+    VERIFY(0 <= offset.y && offset.y + source_bitmap->height <= destination_bitmap->height);
+
+    switch (destination_bitmap->usage) {
+        case GRAPHICS_BITMAP_USAGE_RENDER_TARGET:
+        case GRAPHICS_BITMAP_USAGE_SWAPCHAIN: {
+            VERIFY(source_bitmap->usage == GRAPHICS_BITMAP_USAGE_RENDER_TARGET || source_bitmap->usage == GRAPHICS_BITMAP_USAGE_SWAPCHAIN);
+
+            // NOTE: Fast path when the entire bitmap is copied.
+            if (try_to_copy_entire_bitmap(destination_bitmap, source_bitmap, offset))
+                break;
+
+            u32* dst_row_iterator = (u32*)destination_bitmap->data + ((usize)offset.x + (usize)offset.y * (usize)destination_bitmap->width);
+            u32* src_row_iterator = (u32*)source_bitmap->data;
+
+            for (u32 y_offset = 0; y_offset < source_bitmap->height; ++y_offset) {
+                copy_memory(dst_row_iterator, src_row_iterator, source_bitmap->pitch);
+                dst_row_iterator += destination_bitmap->width;
+                src_row_iterator += source_bitmap->width;
+            }
+
+            break;
+        }
+
+        case GRAPHICS_BITMAP_USAGE_FONT: {
+            VERIFY(source_bitmap->usage == GRAPHICS_BITMAP_USAGE_FONT);
+
+            // NOTE: Fast path when the entire bitmap is copied.
+            if (try_to_copy_entire_bitmap(destination_bitmap, source_bitmap, offset))
+                break;
+
+            WriteonlyBytes dst_row_iterator = (WriteonlyBytes)destination_bitmap->data + ((usize)offset.x + (usize)offset.y * (usize)destination_bitmap->width);
+            ReadonlyBytes src_row_iterator = source_bitmap->data;
+
+            for (u32 y_offset = 0; y_offset < source_bitmap->height; ++y_offset) {
+                copy_memory(dst_row_iterator, src_row_iterator, source_bitmap->pitch);
+                dst_row_iterator += destination_bitmap->width;
+                src_row_iterator += source_bitmap->width;
+            }
+
             break;
         }
 
@@ -162,6 +232,11 @@ static usize draw_list_dispatch_instruction(GraphicsContext graphics_context, Re
     switch (instruction_code) {
         case DRAW_INSTRUCTION_CODE_CLEAR: {
             execute_draw_instruction_clear(graphics_context, (const DrawInstructionClear*)instruction_data);
+            break;
+        }
+
+        case DRAW_INSTRUCTION_CODE_COPY_BITMAP: {
+            execute_draw_instruction_copy_bitmap(graphics_context, (const DrawInstructionCopyBitmap*)instruction_data);
             break;
         }
 

@@ -34,6 +34,7 @@ struct EditorState {
     DrawList draw_list;
 
     EditorFontTable font_table;
+    GraphicsBitmap panel_bitmap;
 };
 
 EditorState* editor_initialize(LinearArena* permanent_arena, Window window);

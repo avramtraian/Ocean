@@ -13,6 +13,7 @@
 enum DrawInstructionCodeEnum {
     DRAW_INSTRUCTION_CODE_NONE = 0,
     DRAW_INSTRUCTION_CODE_CLEAR,
+    DRAW_INSTRUCTION_CODE_COPY_BITMAP,
     DRAW_INSTRUCTION_CODE_PAINT_QUAD,
     DRAW_INSTRUCTION_CODE_PAINT_GLYPH,
 };
@@ -23,6 +24,14 @@ struct DrawInstructionClear {
     DrawInstructionCode instruction_code;
     GraphicsBitmap target_bitmap;
     LinearColor clear_color;
+};
+
+struct DrawInstructionCopyBitmap {
+    // NOTE: Should always be 'DRAW_INSTRUCTION_CODE_COPY_BITMAP'.
+    DrawInstructionCode instruction_code;
+    GraphicsBitmap destination_bitmap;
+    GraphicsBitmap source_bitmap;
+    Vector2i copy_offset;
 };
 
 struct DrawInstructionPaintQuad {
@@ -64,6 +73,7 @@ void draw_list_encode_instruction(DrawList* draw_list, DrawInstructionCode instr
     }
 
 DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_CLEAR, DrawInstructionClear, clear);
+DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_COPY_BITMAP, DrawInstructionCopyBitmap, copy_bitmap);
 DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_PAINT_QUAD, DrawInstructionPaintQuad, paint_quad);
 DEFINE_DRAW_LIST_ENCODE_INSTRUCTION(DRAW_INSTRUCTION_CODE_PAINT_GLYPH, DrawInstructionPaintGlyph, paint_glyph);
 
