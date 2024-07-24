@@ -4,13 +4,23 @@
  */
 
 #include <Core/Assertion.h>
+#include <Core/Memory/MemoryOperations.h>
 #include <Graphics/Font.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <Graphics/stb_truetype.h>
 
 static void flip_vertical_glyph_bitmap(ReadWriteBytes data, u32 width, u32 height)
-{}
+{
+    ReadWriteBytes row_iterator_a = data;
+    ReadWriteBytes row_iterator_b = data + ((usize)width * (usize)(height - 1));
+
+    for (u32 y_offset = 0; y_offset < height / 2; ++y_offset) {
+        swap_memory(row_iterator_a, row_iterator_b, width);
+        row_iterator_a += width;
+        row_iterator_b -= width;
+    }
+}
 
 void font_create_from_memory(Font* font, LinearArena* arena, float font_height, ReadonlyByteSpan ttf_memory_buffer, GraphicsContext graphics_context)
 {
