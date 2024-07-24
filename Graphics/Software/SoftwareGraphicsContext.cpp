@@ -4,14 +4,9 @@
  */
 
 #include <Core/Assertion.h>
-#include <Graphics/GraphicsContext.h>
+#include <Graphics/Software/SoftwareGraphicsContext.h>
 #include <Platform/Memory.h>
 #include <Platform/SoftwareSwapchain.h>
-
-struct SoftwareGraphicsContext {
-    Window window;
-    GraphicsBitmap swapchain_bitmap;
-};
 
 GraphicsContext graphics_context_create(LinearArena* arena, GraphicsContextType graphics_context_type, Window window)
 {
@@ -34,14 +29,6 @@ void graphics_context_destroy(GraphicsContext* graphics_context)
     *context = {};
     *graphics_context = INVALID_HANDLE;
 }
-
-struct SoftwareGraphicsBitmap {
-    u32 width;
-    u32 height;
-    GraphicsBitmapUsage usage;
-    usize pitch;
-    ReadWriteBytes data;
-};
 
 void graphics_context_swap_buffers(GraphicsContext graphics_context)
 {

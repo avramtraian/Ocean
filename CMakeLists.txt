@@ -55,6 +55,7 @@ set(OCEAN_EDITOR_SOURCE_FILES
 set(OCEAN_GRAPHICS_SOURCE_FILES
     Graphics/GraphicsContext.h
     Graphics/Software/SoftwareGraphicsContext.cpp
+    Graphics/Software/SoftwareGraphicsContext.h
 )
 
 set(OCEAN_PLATFORM_SOURCE_FILES
