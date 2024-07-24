@@ -4,6 +4,7 @@
  */
 
 #include <Core/Assertion.h>
+#include <Core/Memory/MemoryOperations.h>
 #include <Graphics/Software/SoftwareGraphicsContext.h>
 #include <Platform/Memory.h>
 #include <Platform/SoftwareSwapchain.h>
@@ -118,6 +119,33 @@ void graphics_context_release_bitmap(GraphicsContext graphics_context, GraphicsB
 
     *bitmap = {};
     *graphics_bitmap = INVALID_HANDLE;
+}
+
+void graphics_bitmap_set_data(GraphicsContext, GraphicsBitmap graphics_bitmap, ReadonlyByteSpan bitmap_data)
+{
+    SoftwareGraphicsBitmap* bitmap = (SoftwareGraphicsBitmap*)graphics_bitmap;
+    VERIFY(bitmap_data.count == bitmap->pitch * (usize)bitmap->height);
+
+    switch (bitmap->usage) {
+        case GRAPHICS_BITMAP_USAGE_RENDER_TARGET:
+        case GRAPHICS_BITMAP_USAGE_SWAPCHAIN: {
+            platform_memory_release(bitmap->data, bitmap_data.count);
+            break;
+        }
+
+        case GRAPHICS_BITMAP_USAGE_FONT: {
+            // NOTE: The bitmaps used for font rendering are allocated from a linear memory arena, thus
+            //       they can't be individually released. This is not a memory leak.
+            break;
+        }
+
+        default: {
+            VERIFY_NOT_REACHED;
+            return;
+        }
+    }
+
+    copy_memory(bitmap->data, bitmap_data.bytes, bitmap_data.count);
 }
 
 u32 graphics_bitmap_get_width(GraphicsBitmap graphics_bitmap)

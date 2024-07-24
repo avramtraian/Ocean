@@ -6,6 +6,7 @@
 #pragma once
 
 #include <Core/Memory/Arena.h>
+#include <Core/Memory/MemorySpan.h>
 #include <Core/Types.h>
 #include <Platform/Window.h>
 
@@ -43,6 +44,10 @@ typedef u8 GraphicsBitmapUsage;
 GraphicsBitmap
 graphics_context_allocate_bitmap(GraphicsContext graphics_context, LinearArena* arena, u32 width, u32 height, GraphicsBitmapUsage usage);
 void graphics_context_release_bitmap(GraphicsContext graphics_context, GraphicsBitmap* graphics_bitmap);
+
+// NOTE: The provided byte buffer is copied to the bitmap internal buffer. It is responsability of the
+//       caller to manage the provided buffer after the function invocation.
+void graphics_bitmap_set_data(GraphicsContext graphics_context, GraphicsBitmap graphics_bitmap, ReadonlyByteSpan bitmap_data);
 
 u32 graphics_bitmap_get_width(GraphicsBitmap graphics_bitmap);
 u32 graphics_bitmap_get_height(GraphicsBitmap graphics_bitmap);
