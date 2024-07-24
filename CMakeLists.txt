@@ -47,23 +47,24 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Types.h
 )
 
-set(OCEAN_DRAW_SOURCE_FILES
+set(OCEAN_EDITOR_SOURCE_FILES
 )
 
-set(OCEAN_EDITOR_SOURCE_FILES
-    Editor/Settings.cpp
-    Editor/Settings.h
-    Editor/State.h
+set(OCEAN_GRAPHICS_SOURCE_FILES
+    Graphics/GraphicsContext.h
+    Graphics/Software/SoftwareGraphicsContext.cpp
 )
 
 set(OCEAN_PLATFORM_SOURCE_FILES
     Platform/FileSystem.h
     Platform/Memory.h
+    Platform/SoftwareSwapchain.h
     Platform/Window.h
     Platform/Windows/WindowsEntryPoint.h
     Platform/Windows/WindowsFileSystem.cpp
     Platform/Windows/WindowsHeaders.h
     Platform/Windows/WindowsMemory.cpp
+    Platform/Windows/WindowsSoftwareSwapchain.cpp
     Platform/Windows/WindowsWindow.cpp
 )
 
@@ -77,8 +78,8 @@ endif ()
 
 add_executable(Ocean ${OCEAN_EXECUTABLE_TYPE}
     ${OCEAN_CORE_SOURCE_FILES}
-    ${OCEAN_DRAW_SOURCE_FILES}
     ${OCEAN_EDITOR_SOURCE_FILES}
+    ${OCEAN_GRAPHICS_SOURCE_FILES}
     ${OCEAN_PLATFORM_SOURCE_FILES}
 )
 
