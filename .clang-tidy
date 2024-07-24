@@ -15,6 +15,7 @@ Checks: >
   -readability-static-accessed-through-instance,
 
   bugprone-*,
+  -bugprone-branch-clone,
   -bugprone-easily-swappable-parameters,
   -bugprone-implicit-widening-of-multiplication-result,
   -bugprone-narrowing-conversions,
