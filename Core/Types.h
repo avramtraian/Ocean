@@ -33,3 +33,18 @@ using ReadWriteBytes = ReadWriteByte*;
 #define INVALID_SIZE              ((usize)-1)
 #define INVALID_HANDLE            ((void*)0)
 #define INVALID_UNICODE_CODEPOINT ((u32)-1)
+
+#define MAX_UINT8  ((u8)0xFF)
+#define MAX_UINT16 ((u16)0xFFFF)
+#define MAX_UINT32 ((u32)0xFFFFFFFF)
+#define MAX_UINT64 ((u64)0xFFFFFFFFFFFFFFFF)
+
+#define MAX_INT8  ((i8)0x7F)
+#define MAX_INT16 ((i16)0x7FFF)
+#define MAX_INT32 ((i32)0x7FFFFFFF)
+#define MAX_INT64 ((i64)0x7FFFFFFFFFFFFFFF)
+
+#define MIN_INT8  ((i8)-0x80)
+#define MIN_INT16 ((i16)-0x8000)
+#define MIN_INT32 ((i32)-0x80000000)
+#define MIN_INT64 ((i64)-0x8000000000000000)
