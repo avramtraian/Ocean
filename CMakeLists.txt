@@ -30,6 +30,8 @@ set(CMAKE_EXPORT_LIBRARY_PREFIX "")
 set(OCEAN_CORE_SOURCE_FILES
     Core/Assertion.h
     Core/Defines.h
+    Core/Encoding/Utf8.cpp
+    Core/Encoding/Utf8.h
     Core/EntryPoint.cpp
     Core/Forward.h
     Core/Log.cpp
