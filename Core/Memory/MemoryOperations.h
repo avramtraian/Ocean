@@ -11,3 +11,5 @@ void copy_memory(void* destination, const void* source, usize byte_count);
 void set_memory(void* destination, ReadonlyByte byte_value, usize byte_count);
 void zero_memory(void* destination, usize byte_count);
 void swap_memory(void* buffer_a, void* buffer_b, usize byte_count);
+
+void copy_memory_reversed(void* destination, const void* source, usize byte_count);

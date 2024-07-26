@@ -39,3 +39,13 @@ void swap_memory(void* buffer_a, void* buffer_b, usize byte_count)
         *b++ = temporary;
     }
 }
+
+void copy_memory_reversed(void* destination, const void* source, usize byte_count)
+{
+    WriteonlyBytes dst_iterator = (WriteonlyBytes)destination + byte_count - 1;
+    WriteonlyBytes dst_iterator_end = (WriteonlyBytes)destination - 1;
+    ReadonlyBytes src_iterator = (ReadonlyBytes)source + byte_count - 1;
+
+    while (dst_iterator != dst_iterator_end)
+        *dst_iterator-- = *src_iterator--;
+}
