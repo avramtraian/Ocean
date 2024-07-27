@@ -68,12 +68,14 @@ set(OCEAN_GRAPHICS_SOURCE_FILES
 
 set(OCEAN_PLATFORM_SOURCE_FILES
     Platform/FileSystem.h
+    Platform/Input.h
     Platform/Memory.h
     Platform/SoftwareSwapchain.h
     Platform/Window.h
     Platform/Windows/WindowsEntryPoint.h
     Platform/Windows/WindowsFileSystem.cpp
     Platform/Windows/WindowsHeaders.h
+    Platform/Windows/WindowsInput.cpp
     Platform/Windows/WindowsMemory.cpp
     Platform/Windows/WindowsSoftwareSwapchain.cpp
     Platform/Windows/WindowsWindow.cpp
