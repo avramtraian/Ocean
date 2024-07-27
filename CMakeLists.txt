@@ -34,6 +34,7 @@ set(OCEAN_CORE_SOURCE_FILES
     Core/Encoding/Utf8.h
     Core/EntryPoint.cpp
     Core/Forward.h
+    Core/KeyCode.h
     Core/Log.cpp
     Core/Log.h
     Core/Math/Color.cpp
