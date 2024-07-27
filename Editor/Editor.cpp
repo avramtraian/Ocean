@@ -7,6 +7,68 @@
 #include <Core/Memory/MemoryOperations.h>
 #include <Editor/Editor.h>
 #include <Platform/FileSystem.h>
+#include <Platform/Memory.h>
+
+//===============================================================================================
+// EDITOR INPUT BUFFER.
+//===============================================================================================
+
+bool input_buffer_ensure_capacity(InputBuffer* input_buffer, usize buffer_capacity)
+{
+    if (input_buffer->text_buffer.count < buffer_capacity) {
+        ReadWriteBytes new_buffer = platform_memory_allocate(buffer_capacity);
+        copy_memory(new_buffer, input_buffer->text_buffer.bytes, input_buffer->text_buffer_used_byte_count);
+        platform_memory_release(input_buffer->text_buffer.bytes, input_buffer->text_buffer.count);
+        input_buffer->text_buffer.bytes = new_buffer;
+        input_buffer->text_buffer.count = buffer_capacity;
+        return true;
+    }
+
+    return false;
+}
+
+void input_buffer_insert_characters(InputBuffer* input_buffer, usize insert_byte_offset, ReadonlyByteSpan characters_to_insert_buffer)
+{
+    VERIFY(insert_byte_offset <= input_buffer->text_buffer_used_byte_count);
+
+    if (input_buffer->text_buffer.count < input_buffer->text_buffer_used_byte_count + characters_to_insert_buffer.count) {
+        ReadWriteBytes new_buffer = platform_memory_allocate(input_buffer->text_buffer_used_byte_count + characters_to_insert_buffer.count);
+        copy_memory(new_buffer, input_buffer->text_buffer.bytes, insert_byte_offset);
+        copy_memory(new_buffer + insert_byte_offset, characters_to_insert_buffer.bytes, characters_to_insert_buffer.count);
+        copy_memory(
+            new_buffer + insert_byte_offset + characters_to_insert_buffer.count,
+            input_buffer->text_buffer.bytes + insert_byte_offset,
+            input_buffer->text_buffer_used_byte_count - insert_byte_offset
+        );
+    }
+    else {
+        copy_memory_reversed(
+            input_buffer->text_buffer.bytes + insert_byte_offset + characters_to_insert_buffer.count,
+            input_buffer->text_buffer.bytes + insert_byte_offset,
+            input_buffer->text_buffer_used_byte_count - insert_byte_offset
+        );
+        copy_memory(input_buffer->text_buffer.bytes + insert_byte_offset, characters_to_insert_buffer.bytes, characters_to_insert_buffer.count);
+    }
+
+    input_buffer->text_buffer_used_byte_count += characters_to_insert_buffer.count;
+}
+
+void input_buffer_remove_characters(InputBuffer* input_buffer, usize remove_byte_offset, usize number_of_bytes_to_remove)
+{
+    VERIFY(remove_byte_offset + number_of_bytes_to_remove <= input_buffer->text_buffer_used_byte_count);
+
+    copy_memory(
+        input_buffer->text_buffer.bytes + remove_byte_offset,
+        input_buffer->text_buffer.bytes + remove_byte_offset + number_of_bytes_to_remove,
+        input_buffer->text_buffer_used_byte_count - remove_byte_offset - number_of_bytes_to_remove
+    );
+    zero_memory(input_buffer->text_buffer.bytes + input_buffer->text_buffer_used_byte_count - number_of_bytes_to_remove, number_of_bytes_to_remove);
+    input_buffer->text_buffer_used_byte_count -= number_of_bytes_to_remove;
+}
+
+//===============================================================================================
+// EDITOR FONTS.
+//===============================================================================================
 
 static void editor_initialize_font_table(EditorState* state, LinearArena* arena)
 {
@@ -49,6 +111,22 @@ static const Font* editor_get_font_from_id(const EditorState* state, EditorFontI
     const u32 font_index = state->font_table.font_indices[font_id];
     return state->font_table.fonts + font_index;
 }
+
+//===============================================================================================
+// EDITOR STATE.
+//===============================================================================================
+
+InputBuffer* editor_get_focused_input_buffer(EditorState* state)
+{
+    if (state->focused_input_panel == MAX_UINT32)
+        return nullptr;
+
+    return &state->input_panels[state->focused_input_panel].input_buffer;
+}
+
+//===============================================================================================
+// EDITOR EVENT LOOP & LIFECYCLE.
+//===============================================================================================
 
 EditorState* editor_initialize(LinearArena* permanent_arena, Window window)
 {
