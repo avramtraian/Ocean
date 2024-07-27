@@ -5,21 +5,21 @@
 
 #include <Core/Encoding/Utf8.h>
 
-u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize& out_codepoint_width)
+u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize* out_codepoint_width)
 {
     if (byte_span.count == 0) {
-        out_codepoint_width = 0;
+        *out_codepoint_width = 0;
         return INVALID_UNICODE_CODEPOINT;
     }
 
     if ((byte_span.bytes[0] & 0x80) == 0x00) {
-        out_codepoint_width = 1;
+        *out_codepoint_width = 1;
         return byte_span.bytes[0];
     }
 
     if ((byte_span.bytes[0] & 0xE0) == 0xC0) {
         if (byte_span.count < 2) {
-            out_codepoint_width = 0;
+            *out_codepoint_width = 0;
             return INVALID_UNICODE_CODEPOINT;
         }
 
@@ -27,13 +27,13 @@ u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize& out_codepoint_wid
         codepoint += (byte_span.bytes[0] & 0x1F) << 6;
         codepoint += (byte_span.bytes[1] & 0x3F) << 0;
 
-        out_codepoint_width = 2;
+        *out_codepoint_width = 2;
         return codepoint;
     }
 
     if ((byte_span.bytes[0] & 0xF0) == 0xE0) {
         if (byte_span.count < 3) {
-            out_codepoint_width = 0;
+            *out_codepoint_width = 0;
             return INVALID_UNICODE_CODEPOINT;
         }
 
@@ -42,13 +42,13 @@ u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize& out_codepoint_wid
         codepoint += (byte_span.bytes[1] & 0x3F) << 6;
         codepoint += (byte_span.bytes[2] & 0x3F) << 0;
 
-        out_codepoint_width = 3;
+        *out_codepoint_width = 3;
         return codepoint;
     }
 
     if ((byte_span.bytes[0] & 0xF8) == 0xF0) {
         if (byte_span.count < 4) {
-            out_codepoint_width = 0;
+            *out_codepoint_width = 0;
             return INVALID_UNICODE_CODEPOINT;
         }
 
@@ -58,11 +58,11 @@ u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize& out_codepoint_wid
         codepoint += (byte_span.bytes[2] & 0x3F) << 6;
         codepoint += (byte_span.bytes[3] & 0x3F) << 0;
 
-        out_codepoint_width = 4;
+        *out_codepoint_width = 4;
         return codepoint;
     }
 
-    out_codepoint_width = 0;
+    *out_codepoint_width = 0;
     return INVALID_UNICODE_CODEPOINT;
 }
 

@@ -8,7 +8,7 @@
 #include <Core/Memory/MemorySpan.h>
 #include <Core/Types.h>
 
-u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize& out_codepoint_width);
+u32 utf8_bytes_to_codepoint(ReadonlyByteSpan byte_span, usize* out_codepoint_width);
 
 usize utf8_bytes_to_codepoint_width(ReadonlyByteSpan byte_span);
 
