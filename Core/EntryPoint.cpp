@@ -4,7 +4,6 @@
  */
 
 #include <Core/Memory/Arena.h>
-#include <Editor/Editor.h>
 #include <Platform/Window.h>
 
 static i32 guarded_main()
@@ -13,13 +12,9 @@ static i32 guarded_main()
     core_linear_arena_initialize(&arena, 16 * MiB);
 
     Window window = platform_window_create(&arena);
-    EditorState* editor_state = editor_initialize(&arena, window);
 
-    while (platform_window_get_message(window)) {
-        editor_on_update(editor_state);
-    }
+    while (platform_window_get_message(window)) {}
 
-    editor_shutdown(editor_state);
     platform_window_destroy(&window);
     core_linear_arena_destroy(&arena);
 

@@ -51,8 +51,6 @@ set(OCEAN_CORE_SOURCE_FILES
 )
 
 set(OCEAN_EDITOR_SOURCE_FILES
-    Editor/Editor.cpp
-    Editor/Editor.h
 )
 
 set(OCEAN_GRAPHICS_SOURCE_FILES
