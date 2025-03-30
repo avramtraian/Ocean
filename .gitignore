@@ -1,0 +1,8 @@
+# Build directory.
+build/
+
+# IDE files.
+.vs/
+.vscode/
+.idea/
+*.vcxproj.user
