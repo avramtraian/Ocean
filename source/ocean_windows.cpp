@@ -766,7 +766,7 @@ draw_tiled_text_buffer(Bitmap *bitmap, TiledTextBuffer *buffer, Font *font)
             if (ASCII_CHARACTER_FIRST <= cell->codepoint && cell->codepoint <= ASCII_CHARACTER_LAST) {
                 FontGlyph *glyph = font_get_glyph(font, cell->codepoint);
                 draw_glyph_bitmap(bitmap, &glyph->bitmap,
-                    cell_offset_x + glyph->offset_x, cell_offset_y + glyph->offset_y, cell->color,
+                    cell_offset_x + glyph->offset_x, cell_offset_y + glyph->offset_y + font->descent, cell->color,
                     buffer->viewport_offset_x, buffer->viewport_offset_y,
                     buffer->viewport_size_x, buffer->viewport_size_y);
             }
@@ -815,7 +815,7 @@ editor_on_resize(EditorState *state, u32 new_size_x, u32 new_size_y)
     const u32 cell_size_y = font->ascent + font->descent;
     const u32 line_spacing = font->line_gap;
     const u32 offset_x = 0;
-    const u32 offset_y = font->descent;
+    const u32 offset_y = 0;
 
     u32 cell_count_x, cell_count_y;
     tiled_text_buffer_cell_count_from_viewport(viewport_size_x, viewport_size_y, cell_size_x, cell_size_y, line_spacing, true,
