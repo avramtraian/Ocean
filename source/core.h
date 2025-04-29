@@ -124,6 +124,27 @@ clamp_s32(s32 value, s32 min_bound, s32 max_bound)
 }
 
 function inline u32
+min_u32(u32 a, u32 b)
+{
+    const u32 result = (a < b) ? a : b;
+    return result;
+}
+
+function inline u32
+max_u32(u32 a, u32 b)
+{
+    const u32 result = (a > b) ? a : b;
+    return result;
+}
+
+function inline u32
+clamp_u32(u32 value, u32 min_bound, u32 max_bound)
+{
+    const u32 result = min_u32(max_u32(value, min_bound), max_bound);
+    return result;
+}
+
+function inline u32
 required_to_fill_u32(u32 step, u32 total_value)
 {
     if (step == 0)
