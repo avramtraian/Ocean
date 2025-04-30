@@ -101,3 +101,26 @@ memory_arena_allocate(MemoryArena *arena, usize allocation_size)
     arena->allocated += allocation_size;
     return allocation_block;
 }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): String library.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function String
+string_initialize(char *characters, usize byte_count)
+{
+    String result;
+    result.characters = characters;
+    result.byte_count = byte_count;
+    return result;
+}
+
+function String
+string_allocate(MemoryArena *arena, usize byte_count)
+{
+    String result;
+    result.characters = (char *)memory_arena_allocate(arena, byte_count);
+    result.byte_count = byte_count;
+    return result;
+}
+

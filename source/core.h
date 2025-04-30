@@ -280,3 +280,20 @@ function void * memory_arena_allocate(MemoryArena *arena, usize allocation_size)
 #define ARENA_PUSH_STRUCT(arena, struct_type) (struct_type *)memory_arena_allocate(arena, sizeof(struct_type))
 #define ARENA_PUSH_ARRAY(arena, struct_type, count) (struct_type *)memory_arena_allocate(arena, (count) * sizeof(struct_type))
 #define ARENA_PUSH_COPY(arena, buffer, buffer_size) { void *_dst = memory_arena_allocate(arena, buffer_size); copy_memory(_dst, buffer, buffer_size); }
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): String library.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct String
+{
+    char *characters;
+    usize byte_count;
+};
+
+function String string_initialize(char *characters, usize byte_count);
+function String string_allocate(MemoryArena *arena, usize byte_count);
+
+// NOTE: The returned string is immutable, but the API doesn't specify that in any way.
+#define STRING_FROM_LITERAL(literal) string_initialize((char *)(literal), sizeof(literal) - sizeof('\0'))
+
