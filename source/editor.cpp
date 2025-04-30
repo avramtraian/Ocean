@@ -9,6 +9,34 @@
 #include "editor.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): Widgets initialize implementations.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+internal EDITOR_WIDGET_API_INITIALIZE(editor_widget_initialize)
+{
+    if (state == NULL || widget == NULL)
+        return;
+
+    for (u32 child_index = 0; child_index < widget->child_count; ++child_index) {
+        EditorWidget *child_widget = (EditorWidget *)(widget->children[child_index]);
+        if (child_widget && child_widget->initialize)
+            child_widget->initialize(state, child_widget);
+    }
+}
+
+internal EDITOR_WIDGET_API_INITIALIZE(panel_titlebar_widget_initialize)
+{
+    PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
+
+    // TODO: This value is absolutely arbitrary and should probably be exposed to
+    // some kind of user configuration space. There is no assumption about this value.
+    titlebar_widget->title_buffer_size = 128;
+    titlebar_widget->title_buffer = (char *)memory_arena_allocate(state->memory->permanent_arena, titlebar_widget->title_buffer_size);
+
+    editor_widget_initialize(state, widget);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // NOTE(traian): Widgets resize implementations.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -57,7 +85,7 @@ internal EDITOR_WIDGET_API_RESIZE(panel_widget_resize)
 
 internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
 {
-    const u32 titlebar_height = 40;
+    const u32 titlebar_height = 40; // TODO: Extract from settings.
     widget->surface_offset_x = widget->parent->surface_offset_x;
     widget->surface_offset_y = widget->parent->surface_offset_y + titlebar_height;
     widget->surface_size_x = widget->parent->surface_size_x;
@@ -68,13 +96,153 @@ internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
 
 internal EDITOR_WIDGET_API_RESIZE(panel_titlebar_widget_resize)
 {
-    const u32 titlebar_height = 40;
+    const u32 titlebar_height = 40; // TODO: Extract from settings.
     widget->surface_offset_x = widget->parent->surface_offset_x;
     widget->surface_offset_y = widget->parent->surface_offset_y;
     widget->surface_size_x = widget->parent->surface_size_x;
     widget->surface_size_y = min_u32(titlebar_height, widget->parent->surface_size_y);
 
+    // TODO: Create a separate font ID for the titlebar text instead of using the default one.
+    Font *font = state->fonts + FONT_ID_DEFAULT;
+
+    const u32 cell_size_x = font->advance;
+    const u32 cell_size_y = font->ascent + font->descent;
+
+    u32 padding_x = 8; // TODO: Extract from settings.
+    u32 viewport_size_x = max_s32((s32)widget->surface_size_x - (s32)(2 * padding_x), 0);
+
+    const u32 viewport_size_y = min_u32(font->ascent + font->descent, widget->surface_size_y);
+    const u32 padding_y = (widget->surface_size_y - viewport_size_y) / 2;
+
+    u32 cell_count_x, cell_count_y;
+    tiled_text_buffer_cell_count_from_viewport(
+        viewport_size_x, viewport_size_y, cell_size_x, cell_size_y,
+        0, false, &cell_count_x, &cell_count_y);
+    cell_count_y = 1;
+
+    PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
+    tiled_text_buffer_initialize(&titlebar_widget->text_buffer, state->memory->dynamic_resources_arena, cell_count_x, cell_count_y);
+    tiled_text_buffer_set_cell_size(&titlebar_widget->text_buffer, cell_size_x, cell_size_y, 0);
+
+    viewport_size_x = cell_count_x * cell_size_x;
+    padding_x = (widget->surface_size_x - viewport_size_x) / 2;
+
+    const u32 viewport_offset_x = widget->surface_offset_x + padding_x;
+    const u32 viewport_offset_y = widget->surface_offset_y + padding_y;
+
+    tiled_text_buffer_set_viewport(
+        &titlebar_widget->text_buffer,
+        viewport_offset_x, viewport_offset_y,
+        viewport_size_x, viewport_size_y);
+
     editor_widget_resize(state, widget);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): Widgets update implementations.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+internal EDITOR_WIDGET_API_UPDATE(editor_widget_update)
+{
+    if (state == NULL || widget == NULL)
+        return;
+
+    for (u32 child_index = 0; child_index < widget->child_count; ++child_index) {
+        EditorWidget *child_widget = (EditorWidget *)(widget->children[child_index]);
+        if (child_widget && child_widget->update)
+            child_widget->update(state, child_widget);
+    }
+}
+
+internal void
+try_to_push_codepoint_to_tiled_text_buffer(TiledTextBuffer *buffer, u32 *cell_index_x, u32 cell_index_y, u32 codepoint, LinearColor color)
+{
+    if (*cell_index_x >= buffer->cell_count_x)
+        return;
+
+    TiledTextCell *cell = tiled_text_buffer_get_cell(buffer, (*cell_index_x)++, cell_index_y);
+    cell->codepoint = codepoint;
+    cell->color = color;
+}
+
+internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
+{
+    PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
+    tiled_text_buffer_reset_cells(&titlebar_widget->text_buffer);
+    ASSERT(titlebar_widget->text_buffer.cell_count_y == 1);
+
+    // TODO: Used for testing purposes. Remove!
+    {
+        const char title[] = "Hello this is very COOL title!";
+        copy_memory(titlebar_widget->title_buffer, title, sizeof(title));
+        titlebar_widget->title.characters = titlebar_widget->title_buffer;
+        titlebar_widget->title.byte_count = sizeof(title);
+    }
+
+    // NOTE: Space for each title subsection is allocated by the following table:
+    // +------------------+-------------------+------------------------+------------------+------------------+--------------------------+
+    // | title_cell_count | 3 cells for ' L#' | line_number_cell_count | 1 cell for space | 2 cells for 'C#' | column_number_cell_count |
+    // +------------------+-------------------+------------------------+------------------+------------------+--------------------------+
+    // The algorithm that calculates these values tries to prioritize, in the following order:
+    //   1) The line number;
+    //   2) The column number;
+    //   3) The title;
+    //   3) The padding.
+    // If the title doesn't fit entirely, it will be postfixed with '...' (which are also included in the 'title_cell_count' value).
+
+    const u32 total_cell_count = titlebar_widget->text_buffer.cell_count_x;
+    const u32 unmutable_cell_count = 6; // 3 + 1 + 2
+    const u32 line_number_cell_count = (u32)string_size_from_uint(titlebar_widget->line_number, NUMERIC_BASE_DECIMAL);
+    const u32 column_number_cell_count = (u32)string_size_from_uint(titlebar_widget->column_number, NUMERIC_BASE_DECIMAL);
+    const u32 title_cell_count = max_s32(total_cell_count - (unmutable_cell_count + line_number_cell_count + column_number_cell_count), 0);
+
+    const LinearColor titlebar_text_color = linear_color(255, 255, 255); // TODO: Extract from settings.
+    u32 cell_index = 0;
+    
+    // NOTE: Fill the buffer with the title contents.
+    {
+        usize title_byte_offset = 0;
+        while (cell_index < title_cell_count && title_byte_offset < titlebar_widget->title.byte_count) {
+            TiledTextCell *cell = tiled_text_buffer_get_cell(&titlebar_widget->text_buffer, cell_index++, 0);
+            cell->codepoint = titlebar_widget->title.characters[title_byte_offset++];
+            cell->color = titlebar_text_color;
+        }
+        cell_index = title_cell_count;
+    }
+
+    // TODO: Used for testing purposes. Remove!
+    titlebar_widget->line_number = 12489;
+    titlebar_widget->column_number = 54783;
+    
+    // NOTE: Fill the buffer with the line number contents.
+    {
+        if (title_cell_count > 0)
+            try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, ' ', titlebar_text_color);
+
+        try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, 'L', titlebar_text_color);
+        try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, '#', titlebar_text_color);
+
+        String line_number_string = string_from_uint(state->memory->work_arena, titlebar_widget->line_number, NUMERIC_BASE_DECIMAL);
+        for (u32 byte_offset = 0; byte_offset < line_number_string.byte_count; ++byte_offset) {
+            const u32 codepoint = line_number_string.characters[byte_offset];
+            try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, codepoint, titlebar_text_color);
+        }
+    }
+
+    // NOTE: Fill the buffer with the column number contents.
+    {
+        try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, ' ', titlebar_text_color);
+        try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, 'C', titlebar_text_color);
+        try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, '#', titlebar_text_color);
+
+        String column_number_string = string_from_uint(state->memory->work_arena, titlebar_widget->column_number, NUMERIC_BASE_DECIMAL);
+        for (u32 byte_offset = 0; byte_offset < column_number_string.byte_count; ++byte_offset) {
+            const u32 codepoint = column_number_string.characters[byte_offset];
+            try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, codepoint, titlebar_text_color);
+        }
+    }
+
+    editor_widget_update(state, widget);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -107,6 +275,9 @@ internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
         state->offscreen_bitmap,
         widget->surface_offset_x, widget->surface_offset_y, widget->surface_size_x, widget->surface_size_y,
         linear_color(0, 255, 0));
+
+    PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
+    draw_tiled_text_buffer(state->offscreen_bitmap, &titlebar_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -115,9 +286,9 @@ internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
 
 internal EDITOR_WIDGET_API_CONSTRUCT(editor_widget_construct)
 {
-    widget->initialize = NULL;
+    widget->initialize = editor_widget_initialize;
     widget->resize = editor_widget_resize;
-    widget->update = NULL;
+    widget->update = editor_widget_update;
     widget->paint = editor_widget_paint;
 }
 
@@ -143,7 +314,9 @@ internal EDITOR_WIDGET_API_CONSTRUCT(panel_content_buffer_widget_construct)
 internal EDITOR_WIDGET_API_CONSTRUCT(panel_titlebar_widget_construct)
 {
     editor_widget_construct(widget);
+    widget->initialize = panel_titlebar_widget_initialize;
     widget->resize = panel_titlebar_widget_resize;
+    widget->update = panel_titlebar_widget_update;
     widget->paint = panel_titlebar_widget_paint;
 }
 
@@ -210,6 +383,9 @@ editor_initialize(EditorMemory *memory, Bitmap *offscreen_bitmap)
 
     editor_initialize_fonts(state);
     editor_build_widget_tree(state);
+
+    // NOTE: Triggers an initialize event to propagate.
+    state->root_widget->initialize(state, state->root_widget);
     editor_resize(state, offscreen_bitmap->size_x, offscreen_bitmap->size_y);
 
     return state;
@@ -226,6 +402,9 @@ function void
 editor_update(EditorState *state)
 {
     // NOTE: Triggers an update event to propagate.
+    state->root_widget->update(state, state->root_widget);
+
+    // NOTE: Triggers a paint event to propagate.
     state->root_widget->paint(state, state->root_widget);
 }
 

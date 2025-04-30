@@ -88,9 +88,12 @@ struct PanelContentBufferWidget : public EditorWidget
 
 struct PanelTitlebarWidget : public EditorWidget
 {
-    const char *title;
-    u32         line_number;
-    u32         column_number;
+    char           *title_buffer;
+    usize           title_buffer_size;
+    String          title;
+    u32             line_number;
+    u32             column_number;
+    TiledTextBuffer text_buffer;
 };
 
 struct PanelWidget : public EditorWidget
