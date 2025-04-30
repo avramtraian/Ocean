@@ -23,6 +23,7 @@
 
 #define ASSERT(...)        if (!(__VA_ARGS__)) { PLATFORM_DEBUGBREAK; }
 #define ASSERT_NOT_REACHED { PLATFORM_DEBUGBREAK; }
+#define ARRAY_COUNT(x)     (sizeof(x) / sizeof((x)[0]))
 
 using u8  = unsigned char;
 using u16 = unsigned short;
