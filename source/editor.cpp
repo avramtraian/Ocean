@@ -190,6 +190,17 @@ editor_build_widget_tree(EditorState *state)
     }
 }
 
+internal void
+editor_initialize_fonts(EditorState *state)
+{
+    FileReadResult ttf_result = platform_read_entire_file_to_arena("C:/Windows/Fonts/consola.ttf", state->memory->work_arena);
+    ASSERT(ttf_result.is_valid);
+    
+    font_initialize(
+        state->fonts + FONT_ID_DEFAULT, state->memory->permanent_arena,
+        ttf_result.file_data, ttf_result.file_size, 30.0F);
+}
+
 function EditorState *
 editor_initialize(EditorMemory *memory, Bitmap *offscreen_bitmap)
 {
@@ -197,6 +208,7 @@ editor_initialize(EditorMemory *memory, Bitmap *offscreen_bitmap)
     state->memory = memory;
     state->offscreen_bitmap = offscreen_bitmap;
 
+    editor_initialize_fonts(state);
     editor_build_widget_tree(state);
     editor_resize(state, offscreen_bitmap->size_x, offscreen_bitmap->size_y);
 
