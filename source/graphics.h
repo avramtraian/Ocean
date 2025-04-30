@@ -89,7 +89,7 @@ struct Font
 };
 
 function void font_initialize(
-    Font *font, MemoryArena *permanent_arena, MemoryArena *work_arena,
+    Font *font, MemoryArena *permanent_arena,
     void *ttf_buffer_data, usize ttf_buffer_size, f32 font_height);
 
 function FontGlyph * font_get_glyph(Font *font, u32 codepoint);

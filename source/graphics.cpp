@@ -38,7 +38,7 @@ bitmap_initialize(Bitmap *bitmap, MemoryArena *arena, u32 size_x, u32 size_y, u3
 #include "stb_truetype.h"
 
 function void
-font_initialize(Font *font, MemoryArena *permanent_arena, MemoryArena *work_arena,
+font_initialize(Font *font, MemoryArena *permanent_arena,
                 void *ttf_buffer_data, usize ttf_buffer_size, f32 font_height)
 {
     stbtt_fontinfo font_info;
