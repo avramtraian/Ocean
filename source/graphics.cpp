@@ -142,6 +142,26 @@ tiled_text_buffer_initialize(TiledTextBuffer *buffer, MemoryArena *arena, u32 ce
 }
 
 function void
+tiled_text_buffer_initialize_from_viewport_and_font(TiledTextBuffer *buffer, MemoryArena *arena,
+                                                    u32 viewport_size_x, u32 viewport_size_y,
+                                                    Font *font, bool is_offset_allowed)
+{
+    const u32 cell_size_x = font->advance;
+    const u32 cell_size_y = font->ascent + font->descent;
+    const u32 line_spacing = font->line_gap;
+
+    u32 cell_count_x, cell_count_y;
+    tiled_text_buffer_cell_count_from_viewport(
+        viewport_size_x, viewport_size_y, cell_size_x, cell_size_y, line_spacing,
+        is_offset_allowed, &cell_count_x, &cell_count_y);
+
+    tiled_text_buffer_initialize(buffer, arena, cell_count_x, cell_count_y);
+    tiled_text_buffer_set_cell_size(buffer, cell_size_x, cell_size_y, line_spacing);
+    tiled_text_buffer_set_viewport(buffer, 0, 0, viewport_size_x, viewport_size_y);
+    tiled_text_buffer_set_offset(buffer, 0, 0);
+}
+
+function void
 tiled_text_buffer_set_cell_size(TiledTextBuffer *buffer, u32 cell_size_x, u32 cell_size_y, u32 line_spacing)
 {
     if (buffer == NULL)
@@ -205,4 +225,11 @@ tiled_text_buffer_get_cell(TiledTextBuffer *buffer, u32 cell_index_x, u32 cell_i
 
     const u32 cell_index = cell_index_x + (cell_index_y * buffer->cell_count_x);
     return buffer->cells + cell_index;
+}
+
+function void
+tiled_text_buffer_reset_cells(TiledTextBuffer *buffer)
+{
+    const usize cell_count = (usize)buffer->cell_count_x * (usize)buffer->cell_count_y;
+    zero_memory(buffer->cells, cell_count * sizeof(TiledTextCell));
 }

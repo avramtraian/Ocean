@@ -126,6 +126,12 @@ function void tiled_text_buffer_cell_count_from_viewport(
     u32 *out_cell_count_x, u32 *out_cell_count_y);
 
 function void tiled_text_buffer_initialize(TiledTextBuffer *buffer, MemoryArena *arena, u32 cell_count_x, u32 cell_count_y);
+
+function void tiled_text_buffer_initialize_from_viewport_and_font(
+    TiledTextBuffer *buffer, MemoryArena *arena,
+    u32 viewport_size_x, u32 viewport_size_y,
+    Font *font, bool is_offset_allowed);
+
 function void tiled_text_buffer_set_cell_size(TiledTextBuffer *buffer, u32 cell_size_x, u32 cell_size_y, u32 line_spacing);
 
 function void tiled_text_buffer_set_viewport(
@@ -134,3 +140,5 @@ function void tiled_text_buffer_set_viewport(
 
 function void tiled_text_buffer_set_offset(TiledTextBuffer *buffer, u32 offset_x, u32 offset_y);
 function TiledTextCell * tiled_text_buffer_get_cell(TiledTextBuffer *buffer, u32 cell_index_x, u32 cell_index_y);
+
+function void tiled_text_buffer_reset_cells(TiledTextBuffer *buffer);
