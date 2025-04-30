@@ -297,3 +297,14 @@ function String string_allocate(MemoryArena *arena, usize byte_count);
 // NOTE: The returned string is immutable, but the API doesn't specify that in any way.
 #define STRING_FROM_LITERAL(literal) string_initialize((char *)(literal), sizeof(literal) - sizeof('\0'))
 
+enum NumericBaseEnum : u8
+{
+    NUMERIC_BASE_DECIMAL,
+    NUMERIC_BASE_HEX,
+    NUMERIC_BASE_OCT,
+    NUMERIC_BASE_BINARY,
+};
+using NumericBase = u8;
+
+function usize string_size_from_uint(u64 value, NumericBase numeric_base);
+function String string_from_uint(MemoryArena *arena, u64 value, NumericBase numeric_base);

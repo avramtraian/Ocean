@@ -124,3 +124,70 @@ string_allocate(MemoryArena *arena, usize byte_count)
     return result;
 }
 
+internal u8
+string_get_numeric_base_value(NumericBase numeric_base)
+{
+    switch (numeric_base) {
+        case NUMERIC_BASE_DECIMAL: return 10;
+        case NUMERIC_BASE_HEX:     return 16;
+        case NUMERIC_BASE_OCT:     return 8;
+        case NUMERIC_BASE_BINARY:  return 2;
+    }
+
+    // NOTE: Default to decimal.
+    return 10;
+}
+
+function usize
+string_size_from_uint(u64 value, NumericBase numeric_base)
+{
+    if (value == 0)
+        return sizeof(char);
+
+    const u8 base_value = string_get_numeric_base_value(numeric_base);
+    usize string_size = 0;
+    while (value != 0) {
+        string_size += sizeof(char);
+        value /= base_value;
+    }
+
+    return string_size;
+}
+
+function String
+string_from_uint(MemoryArena *arena, u64 value, NumericBase numeric_base)
+{
+    const usize string_size = string_size_from_uint(value, numeric_base);
+    String string = string_allocate(arena, string_size);
+
+    if (value == 0) {
+        ASSERT(string.byte_count == sizeof(char));
+        string.characters[0] = '0';
+        return string;
+    }
+
+    const char *digit_table_decimal = "0123456789";
+    const char *digit_table_hex     = "0123456789ABCDEF";
+    const char *digit_table_oct     = "01234567";
+    const char *digit_table_binary  = "01";
+
+    const char* digit_table = NULL;
+    switch (numeric_base) {
+        case NUMERIC_BASE_DECIMAL: digit_table = digit_table_decimal; break;
+        case NUMERIC_BASE_HEX:     digit_table = digit_table_hex;     break;
+        case NUMERIC_BASE_OCT:     digit_table = digit_table_oct;     break;
+        case NUMERIC_BASE_BINARY:  digit_table = digit_table_binary;  break;
+    }
+
+    const u8 base_value = string_get_numeric_base_value(numeric_base);
+    usize byte_offset = string_size - 1;
+
+    while (value != 0) {
+        const u8 digit_index = value % base_value;
+        value /= base_value;
+
+        string.characters[byte_offset--] = digit_table[digit_index];
+    }
+
+    return string;
+}
