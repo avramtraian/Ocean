@@ -46,6 +46,30 @@ function void          editor_update    (EditorState *state);
 function void          editor_destroy   (EditorState *state);
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): Content buffer.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct ContentBufferCursor
+{
+    usize offset;
+    u32 line_index;
+    u32 column_index;
+};
+
+struct ContentBuffer
+{
+    u8                 *content;
+    usize               content_size;
+    usize               reserved_size;
+    u32                 number_of_lines;
+    u32                 max_number_of_columns;
+    ContentBufferCursor cursor;
+};
+
+function usize content_buffer_get_line_offset(ContentBuffer *buffer, u32 line_index);
+function usize content_buffer_get_offset_for_position(ContentBuffer *buffer, u32 line_index, u32 column_index);
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // NOTE(traian): Editor widgets.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +108,10 @@ struct EditorWidget
 
 struct PanelContentBufferWidget : public EditorWidget
 {
+    TiledTextBuffer text_buffer;
+    ContentBuffer   content_buffer;
+    u32             first_line_index;
+    u32             first_column_index;
 };
 
 struct PanelTitlebarWidget : public EditorWidget

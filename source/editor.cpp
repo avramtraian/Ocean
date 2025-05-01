@@ -9,6 +9,56 @@
 #include "editor.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+// NOTE(traian): Content buffer.
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function usize
+content_buffer_get_line_offset(ContentBuffer *buffer, u32 line_index)
+{
+    u32 current_line_index = 0;
+    usize byte_offset = 0;
+    
+    while (current_line_index < line_index && byte_offset < buffer->content_size) {
+        Utf8DecodeResult decode_result = utf8_decode_byte_sequence(buffer->content + byte_offset, buffer->content_size - byte_offset);
+        if (!decode_result.is_valid)
+            return INVALID_SIZE;
+        byte_offset += decode_result.byte_count;
+
+        if (decode_result.codepoint == '\n')
+            ++current_line_index;
+    }
+
+    if (current_line_index < line_index)
+        return INVALID_SIZE;
+
+    return byte_offset;
+}
+
+function usize
+content_buffer_get_offset_for_position(ContentBuffer *buffer, u32 line_index, u32 column_index)
+{
+    usize line_offset = content_buffer_get_line_offset(buffer, line_index);
+    if (line_offset == INVALID_SIZE)
+        return INVALID_SIZE;
+
+    usize byte_offset = line_offset;
+    u32 current_column_index = 0;
+
+    while (current_column_index < column_index && byte_offset < buffer->content_size) {
+        Utf8DecodeResult decode_result = utf8_decode_byte_sequence(buffer->content + byte_offset, buffer->content_size - byte_offset);
+        if (!decode_result.is_valid)
+            return INVALID_SIZE;
+        byte_offset += decode_result.byte_count;
+        ++current_column_index;
+    }
+
+    if (current_column_index < column_index)
+        return INVALID_SIZE;
+
+    return byte_offset;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 // NOTE(traian): Widgets initialize implementations.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -22,6 +72,22 @@ internal EDITOR_WIDGET_API_INITIALIZE(editor_widget_initialize)
         if (child_widget && child_widget->initialize)
             child_widget->initialize(state, child_widget);
     }
+}
+
+internal EDITOR_WIDGET_API_INITIALIZE(panel_content_buffer_widget_initialize)
+{
+    PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
+
+    // TODO: Used for testing purposes. Remove!
+    FileReadResult read = platform_read_entire_file_to_arena("../../source/editor.cpp", state->memory->permanent_arena);
+    if (read.is_valid) {
+        ContentBuffer *content_buffer = &content_buffer_widget->content_buffer;
+        content_buffer->content = (u8 *)read.file_data;
+        content_buffer->content_size = read.file_size;
+        content_buffer->reserved_size = read.file_size;
+    }
+
+    editor_widget_initialize(state, widget);
 }
 
 internal EDITOR_WIDGET_API_INITIALIZE(panel_titlebar_widget_initialize)
@@ -91,6 +157,16 @@ internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
     widget->surface_size_x = widget->parent->surface_size_x;
     widget->surface_size_y = max_s32((s32)widget->parent->surface_size_y - (s32)titlebar_height, 0);
 
+    PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
+    tiled_text_buffer_initialize_from_viewport_and_font(
+        &content_buffer_widget->text_buffer, state->memory->dynamic_resources_arena,
+        widget->surface_size_x, widget->surface_size_y,
+        state->fonts + FONT_ID_DEFAULT, true);
+    tiled_text_buffer_set_viewport(
+        &content_buffer_widget->text_buffer,
+        widget->surface_offset_x, widget->surface_offset_y,
+        widget->surface_size_x, widget->surface_size_y);
+
     editor_widget_resize(state, widget);
 }
 
@@ -154,6 +230,57 @@ internal EDITOR_WIDGET_API_UPDATE(editor_widget_update)
     }
 }
 
+internal EDITOR_WIDGET_API_UPDATE(panel_content_buffer_widget_update)
+{
+    PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
+    PanelWidget *panel_widget = (PanelWidget *)widget->parent;
+    ContentBuffer *content_buffer = &content_buffer_widget->content_buffer;
+
+    const usize content_buffer_offset = content_buffer_get_offset_for_position(
+        content_buffer,
+        content_buffer_widget->first_line_index, content_buffer_widget->first_column_index);
+
+    u32 current_cell_index_x = 0;
+    u32 current_cell_index_y = 0;
+    usize byte_offset = content_buffer_offset;
+
+    while (byte_offset < content_buffer->content_size) {
+        if (current_cell_index_y >= content_buffer_widget->text_buffer.cell_count_y)
+            break;
+
+        Utf8DecodeResult decode_result = utf8_decode_byte_sequence(content_buffer->content + byte_offset, content_buffer->content_size - byte_offset);
+        if (!decode_result.is_valid)
+            break;
+        
+        const u32 codepoint = decode_result.codepoint;
+        byte_offset += decode_result.byte_count;
+
+        // NOTE: Artifact of the CRLF line ending.
+        if (codepoint == '\r')
+            continue;
+
+        if (codepoint == '\t') {
+            const u32 column_index = content_buffer_widget->first_column_index + current_cell_index_x;
+            const u32 tab_size = 4; // TODO: Extract from settings.
+            const u32 space_count = tab_size - (column_index % tab_size);
+            current_cell_index_x += space_count;
+        }
+        else if (current_cell_index_x < content_buffer_widget->text_buffer.cell_count_x) {
+            TiledTextCell *cell = tiled_text_buffer_get_cell(&content_buffer_widget->text_buffer, current_cell_index_x, current_cell_index_y);
+            cell->codepoint = codepoint;
+            cell->color = linear_color(0, 0, 0);
+            current_cell_index_x++;
+        }
+
+        if (codepoint == '\n') {
+            current_cell_index_x = 0;
+            current_cell_index_y++;
+        }
+    }
+
+    editor_widget_update(state, widget);
+}
+
 internal void
 try_to_push_codepoint_to_tiled_text_buffer(TiledTextBuffer *buffer, u32 *cell_index_x, u32 cell_index_y, u32 codepoint, LinearColor color)
 {
@@ -203,8 +330,15 @@ internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
     {
         usize title_byte_offset = 0;
         while (cell_index < title_cell_count && title_byte_offset < titlebar_widget->title.byte_count) {
+            Utf8DecodeResult decode_result = utf8_decode_byte_sequence(
+                (u8 *)titlebar_widget->title.characters + title_byte_offset,
+                titlebar_widget->title.byte_count - title_byte_offset);
+            if (!decode_result.is_valid)
+                break;
+            title_byte_offset += decode_result.byte_count;
+
             TiledTextCell *cell = tiled_text_buffer_get_cell(&titlebar_widget->text_buffer, cell_index++, 0);
-            cell->codepoint = titlebar_widget->title.characters[title_byte_offset++];
+            cell->codepoint = decode_result.codepoint;
             cell->color = titlebar_text_color;
         }
         cell_index = title_cell_count;
@@ -267,6 +401,9 @@ internal EDITOR_WIDGET_API_PAINT(panel_content_buffer_widget_paint)
         state->offscreen_bitmap,
         widget->surface_offset_x, widget->surface_offset_y, widget->surface_size_x, widget->surface_size_y,
         linear_color(255, 0, 0));
+
+    PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
+    draw_tiled_text_buffer(state->offscreen_bitmap, &content_buffer_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
 }
 
 internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
@@ -307,7 +444,9 @@ internal EDITOR_WIDGET_API_CONSTRUCT(panel_widget_construct)
 internal EDITOR_WIDGET_API_CONSTRUCT(panel_content_buffer_widget_construct)
 {
     editor_widget_construct(widget);
+    widget->initialize = panel_content_buffer_widget_initialize;
     widget->resize = panel_content_buffer_widget_resize;
+    widget->update = panel_content_buffer_widget_update;
     widget->paint = panel_content_buffer_widget_paint;
 }
 
