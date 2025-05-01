@@ -45,6 +45,8 @@ using f64 = double;
 using b8  = bool;
 using b32 = int;
 
+#define INVALID_SIZE ((usize)-1)
+
 #define KILOBYTES(x) ((usize)1024 * (usize)(x))
 #define MEGABYTES(x) ((usize)1024 * KILOBYTES(x))
 #define GIGABYTES(x) ((usize)1024 * MEGABYTES(x))
