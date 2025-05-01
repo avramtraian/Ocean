@@ -151,11 +151,13 @@ internal EDITOR_WIDGET_API_RESIZE(panel_widget_resize)
 
 internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
 {
+    const u32 border_size = state->settings.dimensions.panel_border_size;
     const u32 titlebar_height = state->settings.dimensions.titlebar_height;
-    widget->surface_offset_x = widget->parent->surface_offset_x;
+
+    widget->surface_offset_x = widget->parent->surface_offset_x + border_size;
     widget->surface_offset_y = widget->parent->surface_offset_y + titlebar_height;
-    widget->surface_size_x = widget->parent->surface_size_x;
-    widget->surface_size_y = max_s32((s32)widget->parent->surface_size_y - (s32)titlebar_height, 0);
+    widget->surface_size_x = max_s32((s32)widget->parent->surface_size_x - (s32)(2 * border_size), 0);
+    widget->surface_size_y = max_s32((s32)widget->parent->surface_size_y - (s32)(titlebar_height + border_size), 0);
 
     PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
     tiled_text_buffer_initialize_from_viewport_and_font(
@@ -395,6 +397,39 @@ internal EDITOR_WIDGET_API_PAINT(editor_widget_paint)
     }
 }
 
+internal EDITOR_WIDGET_API_PAINT(panel_widget_paint)
+{
+    const u32 border_size = state->settings.dimensions.panel_border_size;
+    const u32 titlebar_height = state->settings.dimensions.titlebar_height;
+
+    PanelWidget *panel_widget = (PanelWidget *)widget;
+
+    // NOTE: Left side.
+    draw_quad(
+        state->offscreen_bitmap,
+        panel_widget->surface_offset_x, panel_widget->surface_offset_y + titlebar_height,
+        border_size, max_s32((s32)panel_widget->surface_size_y - (s32)titlebar_height, 0),
+        state->settings.colors.panel_border);
+
+    // NOTE: Right side.
+    draw_quad(
+        state->offscreen_bitmap,
+        panel_widget->surface_offset_x + (s32)panel_widget->surface_size_x - (s32)border_size,
+        panel_widget->surface_offset_y + titlebar_height,
+        border_size, max_s32((s32)panel_widget->surface_size_y - (s32)titlebar_height, 0),
+        state->settings.colors.panel_border);
+
+    // NOTE: Upper side.
+    draw_quad(
+        state->offscreen_bitmap,
+        panel_widget->surface_offset_x + border_size,
+        panel_widget->surface_offset_y + (s32)panel_widget->surface_size_y - (s32)border_size,
+        max_s32((s32)panel_widget->surface_size_x - (s32)(2 * border_size), 0), border_size,
+        state->settings.colors.panel_border);
+
+    editor_widget_paint(state, widget);
+}
+
 internal EDITOR_WIDGET_API_PAINT(panel_content_buffer_widget_paint)
 {
     draw_quad(
@@ -404,6 +439,8 @@ internal EDITOR_WIDGET_API_PAINT(panel_content_buffer_widget_paint)
 
     PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
     draw_tiled_text_buffer(state->offscreen_bitmap, &content_buffer_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
+
+    editor_widget_paint(state, widget);
 }
 
 internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
@@ -415,6 +452,8 @@ internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
 
     PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
     draw_tiled_text_buffer(state->offscreen_bitmap, &titlebar_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
+
+    editor_widget_paint(state, widget);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -439,6 +478,7 @@ internal EDITOR_WIDGET_API_CONSTRUCT(panel_widget_construct)
 {
     editor_widget_construct(widget);
     widget->resize = panel_widget_resize;
+    widget->paint = panel_widget_paint;
 }
 
 internal EDITOR_WIDGET_API_CONSTRUCT(panel_content_buffer_widget_construct)
@@ -509,11 +549,13 @@ editor_initialize_settings(EditorState *state)
     EditorSettingsColors *colors = &settings->colors;
     EditorSettingsDimensions *dimensions = &settings->dimensions;
 
+    colors->panel_border = linear_color(180, 200, 200);
     colors->content_buffer_background = linear_color(6, 38, 38);
     colors->content_buffer_foreground = linear_color(165, 165, 145);
     colors->titlebar_background = linear_color(180, 200, 200);
     colors->titlebar_foreground = linear_color(8, 8, 8);
 
+    dimensions->panel_border_size = 4;
     dimensions->titlebar_height = 40;
     dimensions->titlebar_text_padding_x = 8;
 }

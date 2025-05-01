@@ -34,6 +34,7 @@ typedef u16 FontID;
 
 struct EditorSettingsColors
 {
+    LinearColor panel_border;
     LinearColor content_buffer_background;
     LinearColor content_buffer_foreground;
     LinearColor titlebar_background;
@@ -42,6 +43,7 @@ struct EditorSettingsColors
 
 struct EditorSettingsDimensions
 {
+    u32 panel_border_size;
     u32 titlebar_height;
     u32 titlebar_text_padding_x;
 };
