@@ -32,12 +32,34 @@ enum FontIDEnum : u8
 };
 typedef u16 FontID;
 
+struct EditorSettingsColors
+{
+    LinearColor content_buffer_background;
+    LinearColor content_buffer_foreground;
+    LinearColor titlebar_background;
+    LinearColor titlebar_foreground;
+};
+
+struct EditorSettingsDimensions
+{
+    u32 titlebar_height;
+    u32 titlebar_text_padding_x;
+};
+
+struct EditorSettings
+{
+    EditorSettingsColors     colors;
+    EditorSettingsDimensions dimensions;
+    u32                      tab_size;
+};
+
 struct EditorState
 {
-    EditorMemory *memory;
-    Bitmap       *offscreen_bitmap;
-    Font          fonts[FONT_ID_MAX_COUNT];
-    EditorWidget *root_widget;
+    EditorMemory  *memory;
+    Bitmap        *offscreen_bitmap;
+    Font           fonts[FONT_ID_MAX_COUNT];
+    EditorSettings settings;
+    EditorWidget  *root_widget;
 };
 
 function EditorState * editor_initialize(EditorMemory *memory, Bitmap *offscreen_bitmap);

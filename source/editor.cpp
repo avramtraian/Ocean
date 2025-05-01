@@ -151,7 +151,7 @@ internal EDITOR_WIDGET_API_RESIZE(panel_widget_resize)
 
 internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
 {
-    const u32 titlebar_height = 40; // TODO: Extract from settings.
+    const u32 titlebar_height = state->settings.dimensions.titlebar_height;
     widget->surface_offset_x = widget->parent->surface_offset_x;
     widget->surface_offset_y = widget->parent->surface_offset_y + titlebar_height;
     widget->surface_size_x = widget->parent->surface_size_x;
@@ -172,7 +172,7 @@ internal EDITOR_WIDGET_API_RESIZE(panel_content_buffer_widget_resize)
 
 internal EDITOR_WIDGET_API_RESIZE(panel_titlebar_widget_resize)
 {
-    const u32 titlebar_height = 40; // TODO: Extract from settings.
+    const u32 titlebar_height = state->settings.dimensions.titlebar_height;
     widget->surface_offset_x = widget->parent->surface_offset_x;
     widget->surface_offset_y = widget->parent->surface_offset_y;
     widget->surface_size_x = widget->parent->surface_size_x;
@@ -184,7 +184,7 @@ internal EDITOR_WIDGET_API_RESIZE(panel_titlebar_widget_resize)
     const u32 cell_size_x = font->advance;
     const u32 cell_size_y = font->ascent + font->descent;
 
-    u32 padding_x = 8; // TODO: Extract from settings.
+    u32 padding_x = state->settings.dimensions.titlebar_text_padding_x;
     u32 viewport_size_x = max_s32((s32)widget->surface_size_x - (s32)(2 * padding_x), 0);
 
     const u32 viewport_size_y = min_u32(font->ascent + font->descent, widget->surface_size_y);
@@ -261,14 +261,14 @@ internal EDITOR_WIDGET_API_UPDATE(panel_content_buffer_widget_update)
 
         if (codepoint == '\t') {
             const u32 column_index = content_buffer_widget->first_column_index + current_cell_index_x;
-            const u32 tab_size = 4; // TODO: Extract from settings.
+            const u32 tab_size = state->settings.tab_size;
             const u32 space_count = tab_size - (column_index % tab_size);
             current_cell_index_x += space_count;
         }
         else if (current_cell_index_x < content_buffer_widget->text_buffer.cell_count_x) {
             TiledTextCell *cell = tiled_text_buffer_get_cell(&content_buffer_widget->text_buffer, current_cell_index_x, current_cell_index_y);
             cell->codepoint = codepoint;
-            cell->color = linear_color(0, 0, 0);
+            cell->color = state->settings.colors.content_buffer_foreground;
             current_cell_index_x++;
         }
 
@@ -323,7 +323,7 @@ internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
     const u32 column_number_cell_count = (u32)string_size_from_uint(titlebar_widget->column_number, NUMERIC_BASE_DECIMAL);
     const u32 title_cell_count = max_s32(total_cell_count - (unmutable_cell_count + line_number_cell_count + column_number_cell_count), 0);
 
-    const LinearColor titlebar_text_color = linear_color(255, 255, 255); // TODO: Extract from settings.
+    const LinearColor titlebar_text_color = state->settings.colors.titlebar_foreground;
     u32 cell_index = 0;
     
     // NOTE: Fill the buffer with the title contents.
@@ -400,7 +400,7 @@ internal EDITOR_WIDGET_API_PAINT(panel_content_buffer_widget_paint)
     draw_quad(
         state->offscreen_bitmap,
         widget->surface_offset_x, widget->surface_offset_y, widget->surface_size_x, widget->surface_size_y,
-        linear_color(255, 0, 0));
+        state->settings.colors.content_buffer_background);
 
     PanelContentBufferWidget *content_buffer_widget = (PanelContentBufferWidget *)widget;
     draw_tiled_text_buffer(state->offscreen_bitmap, &content_buffer_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
@@ -411,7 +411,7 @@ internal EDITOR_WIDGET_API_PAINT(panel_titlebar_widget_paint)
     draw_quad(
         state->offscreen_bitmap,
         widget->surface_offset_x, widget->surface_offset_y, widget->surface_size_x, widget->surface_size_y,
-        linear_color(0, 255, 0));
+        state->settings.colors.titlebar_background);
 
     PanelTitlebarWidget *titlebar_widget = (PanelTitlebarWidget *)widget;
     draw_tiled_text_buffer(state->offscreen_bitmap, &titlebar_widget->text_buffer, state->fonts + FONT_ID_DEFAULT);
@@ -503,6 +503,22 @@ editor_build_widget_tree(EditorState *state)
 }
 
 internal void
+editor_initialize_settings(EditorState *state)
+{
+    EditorSettings *settings = &state->settings;
+    EditorSettingsColors *colors = &settings->colors;
+    EditorSettingsDimensions *dimensions = &settings->dimensions;
+
+    colors->content_buffer_background = linear_color(6, 38, 38);
+    colors->content_buffer_foreground = linear_color(165, 165, 145);
+    colors->titlebar_background = linear_color(180, 200, 200);
+    colors->titlebar_foreground = linear_color(8, 8, 8);
+
+    dimensions->titlebar_height = 40;
+    dimensions->titlebar_text_padding_x = 8;
+}
+
+internal void
 editor_initialize_fonts(EditorState *state)
 {
     FileReadResult ttf_result = platform_read_entire_file_to_arena("C:/Windows/Fonts/consola.ttf", state->memory->work_arena);
@@ -520,6 +536,7 @@ editor_initialize(EditorMemory *memory, Bitmap *offscreen_bitmap)
     state->memory = memory;
     state->offscreen_bitmap = offscreen_bitmap;
 
+    editor_initialize_settings(state);
     editor_initialize_fonts(state);
     editor_build_widget_tree(state);
 
