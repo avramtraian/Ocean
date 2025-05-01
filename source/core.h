@@ -310,3 +310,12 @@ using NumericBase = u8;
 
 function usize string_size_from_uint(u64 value, NumericBase numeric_base);
 function String string_from_uint(MemoryArena *arena, u64 value, NumericBase numeric_base);
+
+struct Utf8DecodeResult
+{
+    b8 is_valid;
+    u32 codepoint;
+    usize byte_count;
+};
+
+function Utf8DecodeResult utf8_decode_byte_sequence(u8 *bytes, usize byte_count);

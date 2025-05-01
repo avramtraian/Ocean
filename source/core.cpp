@@ -191,3 +191,64 @@ string_from_uint(MemoryArena *arena, u64 value, NumericBase numeric_base)
 
     return string;
 }
+
+function Utf8DecodeResult
+utf8_decode_byte_sequence(u8 *bytes, usize byte_count)
+{
+    Utf8DecodeResult result = {};
+    result.is_valid = false;
+    result.codepoint = 0;
+    result.byte_count = 0;
+
+    if (byte_count == 0)
+        return result;
+
+    if ((bytes[0] & 0x80) == 0x00) {
+        result.is_valid = true;
+        result.codepoint = bytes[0];
+        result.byte_count = 1;
+
+        return result;
+    }
+
+    if ((bytes[0] & 0xE0) == 0xC0) {
+        if (byte_count < 2)
+            return result;
+
+        result.is_valid = true;
+        result.codepoint += (bytes[0] & 0x1F) << 6;
+        result.codepoint += (bytes[1] & 0x3F) << 0;
+        result.byte_count = 2;
+
+        return result;
+    }
+
+    if ((bytes[0] & 0xF0) == 0xE0) {
+        if (byte_count < 3)
+            return result;
+
+        result.is_valid = true;
+        result.codepoint += (bytes[0] & 0x1F) << 12;
+        result.codepoint += (bytes[1] & 0x3F) << 6;
+        result.codepoint += (bytes[2] & 0x3F) << 0;
+        result.byte_count = 3;
+
+        return result;
+    }
+
+    if ((bytes[0] & 0xF8) == 0xF0) {
+        if (byte_count < 4)
+            return result;
+
+        result.is_valid = true;
+        result.codepoint += (bytes[0] & 0x1F) << 18;
+        result.codepoint += (bytes[1] & 0x3F) << 12;
+        result.codepoint += (bytes[2] & 0x3F) << 6;
+        result.codepoint += (bytes[3] & 0x3F) << 0;
+        result.byte_count = 4;
+
+        return result;
+    }
+
+    return result;
+}
