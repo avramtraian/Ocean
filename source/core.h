@@ -10,6 +10,14 @@
 // NOTE(traian): Core types and definitions.
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef _DEBUG
+    #define OCEAN_CONFIGURATION_DEBUG   1
+    #define OCEAN_CONFIGURATION_RELEASE 0
+#else
+    #define OCEAN_CONFIGURATION_DEBUG   0
+    #define OCEAN_CONFIGURATION_RELEASE 1
+#endif // _DEBUG
+
 #define internal         static
 #define local_persistent static
 #define global_variable  static
