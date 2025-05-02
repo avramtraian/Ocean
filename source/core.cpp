@@ -252,3 +252,52 @@ utf8_decode_byte_sequence(u8 *bytes, usize byte_count)
 
     return result;
 }
+
+function usize
+utf8_get_codepoint_byte_count(u8 *bytes, usize byte_count)
+{
+    if ((bytes[0] & 0x80) == 0x00) {
+        if (byte_count < 1)
+            return INVALID_SIZE;
+        return 1;
+    }
+
+    if ((bytes[0] & 0xE0) == 0xC0) {
+        if (byte_count < 2)
+            return INVALID_SIZE;
+        return 2;
+    }
+
+    if ((bytes[0] & 0xF0) == 0xE0) {
+        if (byte_count < 3)
+            return INVALID_SIZE;
+        return 3;
+    }
+
+    if ((bytes[0] & 0xF8) == 0xF0) {
+        if (byte_count < 4)
+            return INVALID_SIZE;
+        return 4;
+    }
+    
+    return INVALID_SIZE;
+}
+
+function usize
+utf8_get_string_length(u8 *bytes, usize byte_count)
+{
+    usize string_length = 0;
+    usize byte_offset = 0;
+    while (byte_offset < byte_count) {
+        const usize codepoint_byte_count = utf8_get_codepoint_byte_count(bytes, byte_count - byte_offset);
+        if (codepoint_byte_count == INVALID_SIZE)
+            return INVALID_SIZE;
+        byte_offset += codepoint_byte_count;
+        ++string_length;
+    }
+
+    if (byte_offset != byte_count)
+        return INVALID_SIZE;
+
+    return string_length;
+}

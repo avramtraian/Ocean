@@ -327,3 +327,5 @@ struct Utf8DecodeResult
 };
 
 function Utf8DecodeResult utf8_decode_byte_sequence(u8 *bytes, usize byte_count);
+function usize utf8_get_codepoint_byte_count(u8 *bytes, usize byte_count);
+function usize utf8_get_string_length(u8 *bytes, usize byte_count);
