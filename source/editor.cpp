@@ -303,9 +303,9 @@ internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
     // TODO: Used for testing purposes. Remove!
     {
         const char title[] = "Hello this is very COOL title!";
-        copy_memory(titlebar_widget->title_buffer, title, sizeof(title));
+        copy_memory(titlebar_widget->title_buffer, title, sizeof(title) - sizeof('\0'));
         titlebar_widget->title.characters = titlebar_widget->title_buffer;
-        titlebar_widget->title.byte_count = sizeof(title);
+        titlebar_widget->title.byte_count = sizeof(title) - sizeof('\0');
     }
 
     // NOTE: Space for each title subsection is allocated by the following table:
@@ -330,8 +330,21 @@ internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
     
     // NOTE: Fill the buffer with the title contents.
     {
+        u32 allocated_title_cell_count = 0;
+        u32 dots_cell_count = 0;
+
+        usize required_cell_count = utf8_get_string_length((u8 *)titlebar_widget->title.characters, titlebar_widget->title.byte_count);
+        if (required_cell_count <= title_cell_count) {
+            dots_cell_count = 0;
+            allocated_title_cell_count = (u32)required_cell_count;
+        }
+        else {
+            dots_cell_count = min_u32(3, title_cell_count);
+            allocated_title_cell_count = title_cell_count - dots_cell_count;
+        }
+
         usize title_byte_offset = 0;
-        while (cell_index < title_cell_count && title_byte_offset < titlebar_widget->title.byte_count) {
+        while (cell_index < allocated_title_cell_count && title_byte_offset < titlebar_widget->title.byte_count) {
             Utf8DecodeResult decode_result = utf8_decode_byte_sequence(
                 (u8 *)titlebar_widget->title.characters + title_byte_offset,
                 titlebar_widget->title.byte_count - title_byte_offset);
@@ -343,6 +356,10 @@ internal EDITOR_WIDGET_API_UPDATE(panel_titlebar_widget_update)
             cell->codepoint = decode_result.codepoint;
             cell->color = titlebar_text_color;
         }
+
+        for (u32 dot_index = 0; dot_index < dots_cell_count; ++dot_index)
+            try_to_push_codepoint_to_tiled_text_buffer(&titlebar_widget->text_buffer, &cell_index, 0, '.', titlebar_text_color);
+
         cell_index = title_cell_count;
     }
 
@@ -556,7 +573,7 @@ editor_initialize_settings(EditorState *state)
     colors->titlebar_foreground = linear_color(8, 8, 8);
 
     dimensions->panel_border_size = 4;
-    dimensions->titlebar_height = 40;
+    dimensions->titlebar_height = 36;
     dimensions->titlebar_text_padding_x = 8;
 }
 
