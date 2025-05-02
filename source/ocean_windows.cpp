@@ -168,9 +168,16 @@ WinMain(HINSTANCE instance, HINSTANCE previous_instance, LPSTR command_line, INT
     window_class.lpfnWndProc = win32_window_procedure;
     RegisterClassA(&window_class);
 
+#if OCEAN_CONFIGURATION_DEBUG
+    const char *window_title = "ocean @ AVR-PowerHouse | Windows (64-bit) Debug";
+#endif // OCEAN_CONFIGURATION_DEBUG
+#if OCEAN_CONFIGURATION_RELEASE
+    const char *window_title = "ocean @ AVR-PowerHouse | Windows (64-bit) Release";
+#endif // OCEAN_CONFIGURATION_RELEASE
+
     DWORD window_style_flags = WS_OVERLAPPEDWINDOW;
     HWND window_handle = CreateWindowA(
-        "OceanWindowClass", "ocean @ AVR | Windows 64-bit Development",
+        "OceanWindowClass", window_title,
         window_style_flags, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
         NULL, NULL, instance, NULL);
     if (window_handle == NULL) {
