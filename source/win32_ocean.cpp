@@ -174,7 +174,7 @@ UpdateEditor(HWND WindowHandle)
     Win32UpdateWindowBitmap(GetDC(WindowHandle), GlobalEditorState->WindowWidth, GlobalEditorState->WindowHeight);
 }
 
-internal LRESULT
+internal LRESULT CALLBACK
 WindowProcedure(HWND WindowHandle, UINT MessageID, WPARAM WParam, LPARAM LParam)
 {
     switch (MessageID)
