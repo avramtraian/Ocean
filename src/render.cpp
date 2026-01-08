@@ -213,11 +213,12 @@ next_line(TextCursor* cursor)
 
 constant usize TITLEBAR_SIZE  = 22;
 constant usize SCROLLBAR_SIZE = 15;
-constant usize SPLITTER_SIZE  = 4;
+constant usize SPLITTER_SIZE  = 8;
 
 const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
 const LinearColor TITLEBAR_COLOR             = linear_color(189, 180, 98);
+const LinearColor SPLITTER_COLOR             = linear_color(30, 30, 30);
 const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
 const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
@@ -340,7 +341,7 @@ render_editor_splitter(Rect2D splitter_region)
     buffer_intersection_region.min.x = splitter_region.min.x;
     buffer_intersection_region.min.y = titlebar_intersection_region.max.y;
     buffer_intersection_region.max = splitter_region.max;
-    render_quad_opaque_unoptimized(buffer_intersection_region, BACKGROUND_COLOR);
+    render_quad_opaque_unoptimized(buffer_intersection_region, SPLITTER_COLOR);
 }
 
 internal void
@@ -357,10 +358,14 @@ render_editor_frame(EditorState* state)
     if (state->is_splitscreen) {
         Rect2D r_panel_region = {};
         Rect2D l_panel_region = {};
-        s32 available_size_x = bitmap_size.x - SPLITTER_SIZE;
+        s32 splitter_size = SPLITTER_SIZE;
+        if (state->first_panel.scrollbar_state != ScrollbarState_Hidden)
+            splitter_size = 0; // Hide the splitter when the scrollbar is already there.
+        s32 available_size_x = bitmap_size.x - splitter_size;
+
         l_panel_region.min = v2s(0, 0);
         l_panel_region.max = v2s(available_size_x / 2, bitmap_size.y);
-        r_panel_region.min = v2s(l_panel_region.max.x + SPLITTER_SIZE, 0);
+        r_panel_region.min = v2s(l_panel_region.max.x + splitter_size, 0);
         r_panel_region.max = v2s(bitmap_size.x, bitmap_size.y);
 
         if (!is_degenerated(l_panel_region) && !is_degenerated(r_panel_region)) {
@@ -376,7 +381,7 @@ render_editor_frame(EditorState* state)
         if (!is_degenerated(splitter_region))
             render_editor_splitter(splitter_region);
     } else {
-        Rect2D panel_region = rect_offset_size(0, 0, g_window_bitmap.size_x, g_window_bitmap.size_y);
+        Rect2D panel_region = rect_offset_size(0, 0, bitmap_size.x, bitmap_size.y);
         if (!is_degenerated(panel_region))
             render_editor_panel(panel_region, &state->first_panel);
     }
