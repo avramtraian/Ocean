@@ -62,7 +62,7 @@ load_font_stb(Font* font, char* font_file_name, u32 pixel_height, MemoryArena* a
     stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
     font->ascent       = ascent   * scale_for_height;
     font->descent      = descent  * scale_for_height;
-    font->line_spacing = line_gap * scale_for_height;
+    font->line_spacing = (ascent - descent + line_gap) * scale_for_height; // In order to be consistent with freetype.
     font->advance_width = font_advance_width * scale_for_height;
 
     for (int ascii_codepoint = '!'; ascii_codepoint <= '~'; ++ascii_codepoint) {
@@ -238,8 +238,8 @@ reload_global_fonts(GlobalFontsDescription* description, MemoryArena* arena)
     load_font_stb(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
     load_font_stb(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
 
-    load_font_freetype(&g_fonts.text,     description->text_name,     description->text_pixel_height,     arena);
-    load_font_freetype(&g_fonts.ui,       description->ui_name,       description->ui_pixel_height,       arena);
-    load_font_freetype(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
-    load_font_freetype(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
+    // load_font_freetype(&g_fonts.text,     description->text_name,     description->text_pixel_height,     arena);
+    // load_font_freetype(&g_fonts.ui,       description->ui_name,       description->ui_pixel_height,       arena);
+    // load_font_freetype(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
+    // load_font_freetype(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
 }
