@@ -66,7 +66,7 @@ initialize_editor(EditorState* state)
 
     state->second_panel.buffer = allocate_editor_buffer(MiB(1), GiB(1));
     // Load testing content for the second panel.
-    OSReadFileResult read_file_result2 = os_read_entire_file("C:/Dev/editor3/src/render.cpp");
+    OSReadFileResult read_file_result2 = os_read_entire_file("C:/Dev/editor3/src/update.cpp");
     if (read_file_result2.is_valid)
         insert_into_buffer(&state->second_panel.buffer, 0, read_file_result2.data, read_file_result2.size);
 }
@@ -75,5 +75,10 @@ internal void
 update_editor(EditorState* state)
 {
     state->is_splitscreen = true;
-    state->first_panel.is_scrollbar_visible = true;
+    state->first_panel.scrollbar_state = ScrollbarState_Visible;
+    state->first_panel.scrollbar_offset_percentage = 0.0F;
+    state->first_panel.scrollbar_height_percentage = 0.2F;
+    
+    state->first_panel.caret.line_offset = 100;
+    state->second_panel.caret.line_offset = 10;
 }

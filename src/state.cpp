@@ -19,13 +19,18 @@ struct EditorBuffer {
     usize reserved_size;
 };
 
+enum ScrollbarState : u8 {
+    ScrollbarState_Hidden,
+    ScrollbarState_Visible, // @Cleanup: Think of a better name! This might be missleading...
+    ScrollbarState_Hovered,
+    ScrollbarState_InUse,
+};
+
 struct EditorPanel {
     EditorBuffer buffer;
     EditorCaret caret;
 
-    bool is_scrollbar_visible;
-    bool is_scrollbar_hovered;
-    bool is_scrollbar_in_use;
+    ScrollbarState scrollbar_state;
     f32 scrollbar_offset_percentage;
     f32 scrollbar_height_percentage;
 };
@@ -35,3 +40,24 @@ struct EditorState {
     EditorPanel first_panel;
     EditorPanel second_panel;
 };
+
+internal usize
+get_byte_offset_from_position(EditorBuffer* buffer, u32 line_offset, u32 column_offset)
+{
+    usize current_byte_offset = 0;
+    u32 current_line_offset = 0;
+    u32 current_column_offset = 0;
+
+    while (current_byte_offset < buffer->size && current_line_offset < line_offset) {
+        if (buffer->data[current_byte_offset] == '\n')
+            ++current_line_offset;
+        ++current_byte_offset;
+    }
+
+    while (current_byte_offset < buffer->size && current_column_offset < column_offset) {
+        ++current_column_offset; // @Unicode: Properly support multi-byte encoded codepoints!
+        ++current_byte_offset;
+    }
+
+    return current_byte_offset;
+}

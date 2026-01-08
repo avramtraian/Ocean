@@ -345,7 +345,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     // fonts_description.ui_name       = "C:/Windows/Fonts/consola.ttf";
     // fonts_description.ui_small_name = "C:/Windows/Fonts/consola.ttf";
     // fonts_description.ui_big_name   = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.text_pixel_height     = 25;
+    fonts_description.text_pixel_height     = 20;
     fonts_description.ui_pixel_height       = 30;
     fonts_description.ui_small_pixel_height = 20;
     fonts_description.ui_big_pixel_height   = 40;

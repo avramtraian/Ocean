@@ -4,75 +4,6 @@
  */
 
 //
-// TEXT CURSOR:
-//
-
-struct TextCursor {
-    Font* font;
-    Rect2D visible_region;
-    Vector2u cell_size;
-    Vector2s cursor;
-};
-
-internal TextCursor
-create_text_cursor(Font* font, Rect2D visible_region, Vector2s start_offset)
-{
-    TextCursor cursor = {};
-    cursor.font = font;
-    cursor.visible_region = visible_region;
-    cursor.cell_size.x = font->advance_width;
-    cursor.cell_size.y = font->line_spacing;
-    cursor.cursor.x = visible_region.min.x + start_offset.x;
-    cursor.cursor.y = visible_region.max.y - cursor.cell_size.y + start_offset.y + (font->descent);
-    return cursor;
-}
-
-enum TextCursorOverflow : u8 {
-    TextCursorOverflow_None,
-    TextCursorOverflow_X,
-    TextCursorOverflow_Y,
-};
-
-internal TextCursorOverflow
-text_cursor_get_glyph_offset(TextCursor* cursor, Vector2s glyph_render_offset, Vector2s* out_offset)
-{
-    if (cursor->cursor.x >= cursor->visible_region.max.x ||
-        cursor->cursor.x + cursor->cell_size.x <= cursor->visible_region.min.x)
-    {
-        // The current text cell is entirely out of the visible region along the Y-axis.
-        ZERO_STRUCT_POINTER(out_offset);
-        return TextCursorOverflow_X;
-    }
-
-    if (cursor->cursor.y >= cursor->visible_region.max.y ||
-        cursor->cursor.y + cursor->cell_size.y <= cursor->visible_region.min.y)
-    {
-        // The current text cell is entirely out of the visible region along the Y-axis.
-        ZERO_STRUCT_POINTER(out_offset);
-        return TextCursorOverflow_Y;
-    }
-
-    *out_offset = cursor->cursor;
-    out_offset->x += glyph_render_offset.x;
-    out_offset->y += glyph_render_offset.y + (-cursor->font->descent);
-    return TextCursorOverflow_None;
-}
-
-internal void
-text_cursor_advance(TextCursor* cursor)
-{
-    cursor->cursor.x += cursor->cell_size.x;
-}
-
-internal void
-text_cursor_next_line(TextCursor* cursor)
-{
-    cursor->cursor.x = cursor->visible_region.min.x;
-    constant f32 LINE_SPACE_MULTIPLIER = 1.0F;
-    cursor->cursor.y -= cursor->font->line_spacing * LINE_SPACE_MULTIPLIER;
-}
-
-//
 // PRIMITIVE RENDERING:
 //
 
@@ -200,26 +131,162 @@ render_glyph_bitmap_unoptimized(SubpixelFontGlyph* glyph, Vector2s offset, Rect2
     }
 }
 
-constant usize TITLEBAR_SIZE  = 50;
+//
+// TEXT CURSOR:
+//
+
+struct TextCursor {
+    Font* font;
+    Rect2D visible_region;
+    Vector2u cell_size;
+    Vector2s cursor;
+};
+
+internal TextCursor
+create_text_cursor(Font* font, Rect2D visible_region, Vector2s start_offset)
+{
+    TextCursor cursor = {};
+    cursor.font = font;
+    cursor.visible_region = visible_region;
+    cursor.cell_size.x = font->advance_width;
+    cursor.cell_size.y = font->line_spacing;
+    cursor.cursor.x = visible_region.min.x + start_offset.x;
+    cursor.cursor.y = visible_region.max.y - cursor.cell_size.y + start_offset.y + (font->descent);
+    return cursor;
+}
+
+struct TextCursorOverflow {
+    bool vertical;
+    bool horizontal;
+};
+
+internal TextCursorOverflow
+get_overflow(TextCursor* cursor)
+{
+    TextCursorOverflow overflow;
+    overflow.vertical   = false;
+    overflow.horizontal = false;
+
+    if (cursor->cursor.x >= cursor->visible_region.max.x ||
+        cursor->cursor.x + cursor->cell_size.x <= cursor->visible_region.min.x)
+    {
+        // The current text cell is entirely out of the visible region along the Y-axis.
+        overflow.horizontal = true;
+    }
+
+    if (cursor->cursor.y >= cursor->visible_region.max.y ||
+        cursor->cursor.y + cursor->cell_size.y <= cursor->visible_region.min.y)
+    {
+        // The current text cell is entirely out of the visible region along the Y-axis.
+        overflow.vertical = true;
+    }
+
+    return overflow;
+}
+
+internal Vector2s
+get_glyph_offset(TextCursor* cursor, Vector2s glyph_render_offset)
+{
+    Vector2s glyph_offset;
+    glyph_offset.x = cursor->cursor.x + glyph_render_offset.x;
+    glyph_offset.y = cursor->cursor.y + glyph_render_offset.y + (-cursor->font->descent);
+    return glyph_offset;
+}
+
+internal void
+advance(TextCursor* cursor)
+{
+    cursor->cursor.x += cursor->cell_size.x;
+}
+
+internal void
+next_line(TextCursor* cursor)
+{
+    cursor->cursor.x = cursor->visible_region.min.x;
+    constant f32 LINE_SPACE_MULTIPLIER = 1.0F;
+    cursor->cursor.y -= cursor->font->line_spacing * LINE_SPACE_MULTIPLIER;
+}
+
+//
+// RENDER EDITOR FRAME:
+//
+
+constant usize TITLEBAR_SIZE  = 22;
 constant usize SCROLLBAR_SIZE = 15;
 constant usize SPLITTER_SIZE  = 4;
 
+const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
+const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
+const LinearColor TITLEBAR_COLOR             = linear_color(189, 180, 98);
+const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
+const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
+const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
+const LinearColor SCROLLBAR_IN_USE_COLOR     = linear_color(120, 120, 120);
+
+//
+// NOTE(Traian): The rendering routine for the editor buffer currently does too many things, such as determining
+// the buffer offset based on the panel line and column offsets. Most of these things should be done by the update
+// layer, and the rendering layer should only know what codepoints to render and what color (and effects) are they.
+// The current arhictecture however is much simpler, and since we don't support any custom coloring for the text buffer
+// it's fine... (8th January 2026)
+//
+
 internal void
-render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer)
+render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset, u32 column_offset)
 {
-    render_rectangle_opaque_unoptimized(buffer_region, 2, linear_color(255, 0, 0));
+    TextCursor cursor = create_text_cursor(font_from_id(FontID_Text), buffer_region, v2s(0, 0));
+    usize byte_offset = get_byte_offset_from_position(buffer, line_offset, column_offset);
+
+    render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
+
+    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + byte_offset, buffer->size - byte_offset);
+    while (is_valid(buffer_iterator)) {
+        u32 codepoint = buffer_iterator.codepoint;
+        advance(&buffer_iterator);
+        if (codepoint >= 128) continue; // Ignore non-ASCII codepoints... for now...
+
+        TextCursorOverflow cursor_overflow = get_overflow(&cursor);
+        if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
+
+        if ('!' <= codepoint && codepoint <= '~') {
+            if (!cursor_overflow.horizontal) {
+                // auto* glyph = &cursor.font->ascii_subpixel_glyphs_freetype[codepoint - '!'];
+                auto* glyph = &cursor.font->ascii_grayscale_glyphs_stb[codepoint - '!'];
+                Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
+                render_glyph_bitmap_unoptimized(glyph, glyph_offset, buffer_region, FOREGROUND_COLOR);
+            }
+            advance(&cursor);
+        } else {
+            if (codepoint == ' ')  advance(&cursor);
+            if (codepoint == '\n') next_line(&cursor);
+        }
+    }
 }
 
 internal void
 render_editor_titlebar(Rect2D titlebar_region, u32 line_offset, u32 column_offset)
 {
-    render_rectangle_opaque_unoptimized(titlebar_region, 2, linear_color(0, 255, 0));
+    render_quad_opaque_unoptimized(titlebar_region, TITLEBAR_COLOR);
 }
 
 internal void
-render_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height)
+render_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height, ScrollbarState state)
 {
-    render_rectangle_opaque_unoptimized(scrollbar_region, 2, linear_color(0, 0, 255));
+    s32 scrollbar_height = rect_size_y(scrollbar_region) * height;
+    s32 scrollbar_offset_y = lerp(scrollbar_region.max.y - scrollbar_height, scrollbar_region.min.y, offset);
+    Rect2D scrollbar_box_region = {};
+    scrollbar_box_region.min.x = scrollbar_region.min.x;
+    scrollbar_box_region.min.y = scrollbar_offset_y;
+    scrollbar_box_region.max.x = scrollbar_region.max.x;
+    scrollbar_box_region.max.y = scrollbar_offset_y + scrollbar_height;
+
+    LinearColor box_color = SCROLLBAR_FOREGROUND_COLOR;
+    if (state == ScrollbarState_Visible) box_color = SCROLLBAR_FOREGROUND_COLOR;
+    if (state == ScrollbarState_Hovered) box_color = SCROLLBAR_HOVERED_COLOR;
+    if (state == ScrollbarState_InUse)   box_color = SCROLLBAR_IN_USE_COLOR;
+
+    render_quad_opaque_unoptimized(scrollbar_region, SCROLLBAR_BACKGROUND_COLOR);
+    render_quad_opaque_unoptimized(scrollbar_box_region, box_color);
 }
 
 internal void
@@ -238,7 +305,7 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     buffer_region.min.y = titlebar_region.max.y;
     buffer_region.max.y = panel_region.max.y;
 
-    if (panel->is_scrollbar_visible) {
+    if (panel->scrollbar_state != ScrollbarState_Hidden) {
         buffer_region.max.x -= SCROLLBAR_SIZE;
         scrollbar_region.min.x = buffer_region.max.x;
         scrollbar_region.max.x = panel_region.max.x;
@@ -247,18 +314,33 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     }
 
     if (!is_degenerated(buffer_region))
-        render_editor_buffer(buffer_region, &panel->buffer);
+        render_editor_buffer(buffer_region, &panel->buffer, panel->caret.line_offset, panel->caret.column_offset);
 
     if (!is_degenerated(titlebar_region))
         render_editor_titlebar(titlebar_region, panel->caret.line_offset, panel->caret.column_offset);
 
-    if (!is_degenerated(scrollbar_region))
-        render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage, panel->scrollbar_height_percentage);
+    if (!is_degenerated(scrollbar_region)) {
+        render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
+                                panel->scrollbar_height_percentage, panel->scrollbar_state);
+    }
 }
 
 internal void
 render_editor_splitter(Rect2D splitter_region)
 {
+    // @Cleanup: It would be really neat to actually use 'rect_intersect' in order to compute this regions!
+    Rect2D titlebar_intersection_region = {};
+    titlebar_intersection_region.min = splitter_region.min;
+    titlebar_intersection_region.max.x = splitter_region.max.x;
+    titlebar_intersection_region.max.y = splitter_region.min.y + TITLEBAR_SIZE;
+    render_quad_opaque_unoptimized(titlebar_intersection_region, TITLEBAR_COLOR);
+
+    // @Cleanup: It would be really neat to actually use 'rect_intersect' in order to compute this regions!
+    Rect2D buffer_intersection_region = {};
+    buffer_intersection_region.min.x = splitter_region.min.x;
+    buffer_intersection_region.min.y = titlebar_intersection_region.max.y;
+    buffer_intersection_region.max = splitter_region.max;
+    render_quad_opaque_unoptimized(buffer_intersection_region, BACKGROUND_COLOR);
 }
 
 internal void
@@ -273,15 +355,11 @@ render_editor_frame(EditorState* state)
         return;
 
     if (state->is_splitscreen) {
-        EditorPanel* l = &state->first_panel;
-        EditorPanel* r = &state->second_panel;
-        s32 available_size_x = bitmap_size.x - SPLITTER_SIZE;
-
+        Rect2D r_panel_region = {};
         Rect2D l_panel_region = {};
+        s32 available_size_x = bitmap_size.x - SPLITTER_SIZE;
         l_panel_region.min = v2s(0, 0);
         l_panel_region.max = v2s(available_size_x / 2, bitmap_size.y);
-
-        Rect2D r_panel_region = {};
         r_panel_region.min = v2s(l_panel_region.max.x + SPLITTER_SIZE, 0);
         r_panel_region.max = v2s(bitmap_size.x, bitmap_size.y);
 
@@ -297,5 +375,9 @@ render_editor_frame(EditorState* state)
         splitter_region.max.y = bitmap_size.y;
         if (!is_degenerated(splitter_region))
             render_editor_splitter(splitter_region);
+    } else {
+        Rect2D panel_region = rect_offset_size(0, 0, g_window_bitmap.size_x, g_window_bitmap.size_y);
+        if (!is_degenerated(panel_region))
+            render_editor_panel(panel_region, &state->first_panel);
     }
 }
