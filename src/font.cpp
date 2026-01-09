@@ -23,11 +23,12 @@ struct SubpixelFontGlyph {
 
 struct Font {
     u32 pixel_height;
-    s32 advance_width;
+    s32 advance_width; // Always monospaced.
     s32 ascent;
     s32 descent;
     s32 line_height;
     s32 line_gap;
+    Vector2s glyph_cell_size; // Always monospaced.
 
     constant usize ascii_glyph_count = '~' - '!' + 1;
     GrayscaleFontGlyph ascii_grayscale_glyphs_stb      [ascii_glyph_count];
@@ -66,6 +67,9 @@ load_font_stb(Font* font, char* font_file_name, u32 pixel_height, MemoryArena* a
     font->line_gap      = line_gap * scale_for_height;
     font->advance_width = font_advance_width * scale_for_height;
     font->line_height   = font->ascent + (-font->descent) + font->line_gap;
+
+    font->glyph_cell_size.x = font->advance_width;
+    font->glyph_cell_size.y = font->ascent + (-font->descent);
 
     for (int ascii_codepoint = '!'; ascii_codepoint <= '~'; ++ascii_codepoint) {
         GrayscaleFontGlyph* glyph = &font->ascii_grayscale_glyphs_stb[ascii_codepoint - '!'];
@@ -187,6 +191,9 @@ load_font_freetype(Font* font, char* font_file_name, u32 pixel_height, MemoryAre
             src_byte_offset -= glyph->bytes_per_row;
         }
     }
+
+    font->glyph_cell_size.x = font->advance_width;
+    font->glyph_cell_size.y = font->ascent + (-font->descent);
 
     FT_Done_Face(face);
     FT_Done_FreeType(library);
