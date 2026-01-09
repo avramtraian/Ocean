@@ -215,3 +215,35 @@ copy_string_frame(String source_string)
     String result = copy_string(source_string, frame_arena);
     return result;
 }
+
+enum NumericBase : u8 {
+    NumericBase_Binary      = 2,
+    NumericBase_Octal       = 8,
+    NumericBase_Decimal     = 10,
+    NumericBase_Hexadecimal = 16,
+};
+
+internal String
+string_from_number(u64 unsigned_integer, NumericBase numeric_base = NumericBase_Decimal)
+{
+    u8 digit_count = 0;
+    s64 value = unsigned_integer;
+    while (value != 0) {
+        ++digit_count;
+        value /= numeric_base;
+    }
+
+    String result = push_string_frame(digit_count * sizeof(char));
+    char digits[] = "0123456789ABCDEF";
+
+    u8 byte_offset = 0;
+    value = unsigned_integer;
+    while (value != 0) {
+        u8 digit_index = value % numeric_base;
+        result.data[digit_count - byte_offset - 1] = digits[digit_index];
+        value /= numeric_base;
+        ++byte_offset;
+    }
+
+    return result;
+}
