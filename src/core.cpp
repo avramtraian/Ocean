@@ -92,6 +92,14 @@ allocate_from_arena(MemoryArena* arena, usize size, usize alignment)
 #define PUSH_STRUCT(arena, StructName)       (StructName*)allocate_from_arena(arena, sizeof(StructName), alignof(StructName))
 #define PUSH_ARRAY(arena, StructName, count) (StructName*)allocate_from_arena(arena, (count) * sizeof(StructName), alignof(StructName))
 
+struct GlobalArenas {
+    MemoryArena* eternal;
+    MemoryArena* frame;
+    MemoryArena* fonts;
+};
+
+internal GlobalArenas g_arenas;
+
 struct TemporaryMemory {
     MemoryArena* arena;
     usize base_used;

@@ -234,8 +234,11 @@ struct GlobalFontsDescription {
 };
 
 internal void
-reload_global_fonts(GlobalFontsDescription* description, MemoryArena* arena)
+reload_global_fonts(GlobalFontsDescription* description)
 {
+    MemoryArena* arena = g_arenas.fonts;
+    reset_memory_arena(arena);
+
     load_font_stb(&g_fonts.text,     description->text_name,     description->text_pixel_height,     arena);
     load_font_stb(&g_fonts.ui,       description->ui_name,       description->ui_pixel_height,       arena);
     load_font_stb(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);

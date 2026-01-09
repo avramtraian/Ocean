@@ -350,8 +350,14 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     fonts_description.ui_small_pixel_height = 20;
     fonts_description.ui_big_pixel_height   = 40;
     
-    MemoryArena fonts_arena = create_arena(KiB(128), MiB(64));
-    reload_global_fonts(&fonts_description, &fonts_arena);
+    MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
+    MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));
+    MemoryArena fonts_arena   = create_arena(KiB(128), MiB(64));
+    g_arenas.eternal = &eternal_arena;
+    g_arenas.frame = &frame_arena;
+    g_arenas.fonts = &fonts_arena;
+
+    reload_global_fonts(&fonts_description);
 
     EditorState editor_state = {};
     initialize_editor(&editor_state);
