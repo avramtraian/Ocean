@@ -149,9 +149,9 @@ create_text_cursor(Font* font, Rect2D visible_region, Vector2s start_offset)
     cursor.font = font;
     cursor.visible_region = visible_region;
     cursor.cell_size.x = font->advance_width;
-    cursor.cell_size.y = font->line_spacing;
-    cursor.cursor.x = visible_region.min.x + start_offset.x;
-    cursor.cursor.y = visible_region.max.y - cursor.cell_size.y + start_offset.y + (font->descent);
+    cursor.cell_size.y = font->ascent + (-font->descent);
+    cursor.cursor.x = visible_region.min.x                      + start_offset.x;
+    cursor.cursor.y = visible_region.max.y - cursor.cell_size.y + start_offset.y;
     return cursor;
 }
 
@@ -204,7 +204,7 @@ next_line(TextCursor* cursor)
 {
     cursor->cursor.x = cursor->visible_region.min.x;
     constant f32 LINE_SPACE_MULTIPLIER = 1.0F;
-    cursor->cursor.y -= cursor->font->line_spacing * LINE_SPACE_MULTIPLIER;
+    cursor->cursor.y -= cursor->font->line_height * LINE_SPACE_MULTIPLIER;
 }
 
 //

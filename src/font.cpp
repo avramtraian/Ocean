@@ -26,7 +26,8 @@ struct Font {
     s32 advance_width;
     s32 ascent;
     s32 descent;
-    s32 line_spacing;
+    s32 line_height;
+    s32 line_gap;
 
     constant usize ascii_glyph_count = '~' - '!' + 1;
     GrayscaleFontGlyph ascii_grayscale_glyphs_stb      [ascii_glyph_count];
@@ -60,10 +61,11 @@ load_font_stb(Font* font, char* font_file_name, u32 pixel_height, MemoryArena* a
     // NOTE(Traian): Since we only support monospaced fonts this value should be the same for all
     // codepoints supported by the font. For convenience we store the value directly in the font.
     stbtt_GetFontVMetrics(&font_info, &ascent, &descent, &line_gap);
-    font->ascent       = ascent   * scale_for_height;
-    font->descent      = descent  * scale_for_height;
-    font->line_spacing = (ascent - descent + line_gap) * scale_for_height; // In order to be consistent with freetype.
+    font->ascent        = ascent   * scale_for_height;
+    font->descent       = descent  * scale_for_height;
+    font->line_gap      = line_gap * scale_for_height;
     font->advance_width = font_advance_width * scale_for_height;
+    font->line_height   = font->ascent + (-font->descent) + font->line_gap;
 
     for (int ascii_codepoint = '!'; ascii_codepoint <= '~'; ++ascii_codepoint) {
         GrayscaleFontGlyph* glyph = &font->ascii_grayscale_glyphs_stb[ascii_codepoint - '!'];
@@ -145,9 +147,10 @@ load_font_freetype(Font* font, char* font_file_name, u32 pixel_height, MemoryAre
     FT_Error set_pixel_size_result = FT_Set_Pixel_Sizes(face, 0, pixel_height);
     ASSERT(set_pixel_size_result == 0);
 
-    font->ascent       = face->size->metrics.ascender  / 64;
-    font->descent      = face->size->metrics.descender / 64;
-    font->line_spacing = face->size->metrics.height    / 64;
+    font->ascent      = face->size->metrics.ascender  / 64;
+    font->descent     = face->size->metrics.descender / 64;
+    font->line_height = face->size->metrics.height    / 64;
+    font->line_gap    = font->line_height - (font->ascent + (-font->descent));
 
     for (int ascii_codepoint = '!'; ascii_codepoint <= '~'; ++ascii_codepoint) {
         FT_Error load_char_result = FT_Load_Char(face, ascii_codepoint, FT_LOAD_FORCE_AUTOHINT | FT_LOAD_RENDER | FT_LOAD_TARGET_LCD);
