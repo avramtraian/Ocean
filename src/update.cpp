@@ -87,8 +87,11 @@ update_editor(EditorState* state)
     
     state->first_panel.first_line_offset = 100;
     state->first_panel.first_column_offset = 0;
-    state->first_panel.caret.line_offset = 372;
-    state->first_panel.caret.column_offset = 25;
+    state->first_panel.caret.line_offset = 104;
+    state->first_panel.caret.column_offset = 10;
+    state->first_panel.caret.has_selection = true;
+    state->first_panel.caret.trail_line_offset = 104;
+    state->first_panel.caret.trail_column_offset = 7;
 
     state->second_panel.first_line_offset = 10;
     state->second_panel.first_column_offset = 5;

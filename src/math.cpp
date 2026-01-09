@@ -79,6 +79,15 @@ to_v2s(Vector2u vector2u)
     return result;
 }
 
+inline Vector2u
+to_v2u(Vector2s vector2s)
+{
+    Vector2u result;
+    result.x = (u32)vector2s.x; // @Incomplete: Check for overflow!
+    result.y = (u32)vector2s.y; // @Incomplete: Check for overflow!
+    return result;
+}
+
 inline Rect2D
 rect(s32 min_x, s32 min_y, s32 max_x, s32 max_y)
 {
@@ -96,6 +105,17 @@ rect_offset_size(s32 offset_x, s32 offset_y, u32 size_x, u32 size_y)
     result.min.y = offset_y;
     result.max.x = offset_x + size_x;
     result.max.y = offset_y + size_y;
+    return result;
+}
+
+inline Rect2D
+rect_offset_size(Vector2s offset, Vector2u size)
+{
+    Rect2D result;
+    result.min.x = offset.x;
+    result.min.y = offset.y;
+    result.max.x = offset.x + size.x;
+    result.max.y = offset.y + size.y;
     return result;
 }
 

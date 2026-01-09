@@ -211,12 +211,15 @@ next_line(TextCursor* cursor)
 // RENDER EDITOR FRAME:
 //
 
-constant usize TITLEBAR_SIZE  = 22;
-constant usize SCROLLBAR_SIZE = 15;
-constant usize SPLITTER_SIZE  = 8;
+constant usize TITLEBAR_SIZE           = 22;
+constant usize SCROLLBAR_SIZE          = 15;
+constant usize SPLITTER_SIZE           = 8;
+constant f32   CARET_SIZE_PERCENTAGE_X = 0.2F;
+constant f32   CARET_SIZE_PERCENTAGE_Y = 1.3F;
 
 const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
+const LinearColor BACKGROUND_SELECTED_COLOR  = linear_color(15, 30, 200);
 const LinearColor TITLEBAR_BACKGROUND_COLOR  = linear_color(189, 180, 98);
 const LinearColor TITLEBAR_FOREGROUND_COLOR  = linear_color(25, 25, 25);
 const LinearColor SPLITTER_COLOR             = linear_color(30, 30, 30);
@@ -224,6 +227,7 @@ const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
 const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
 const LinearColor SCROLLBAR_IN_USE_COLOR     = linear_color(120, 120, 120);
+const LinearColor CARET_COLOR                = linear_color(220, 220, 220);
 
 //
 // NOTE(Traian): The rendering routine for the editor buffer currently does too many things, such as determining
@@ -234,22 +238,48 @@ const LinearColor SCROLLBAR_IN_USE_COLOR     = linear_color(120, 120, 120);
 //
 
 internal void
-render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset, u32 column_offset)
+render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* caret, u32 line_offset, u32 column_offset)
 {
     TextCursor cursor = create_text_cursor(font_from_id(FontID_Text), buffer_region, v2s(0, 0));
     usize byte_offset = get_byte_offset_from_position(buffer, line_offset, column_offset);
 
     render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
 
+    usize caret_selection_start_offset = 0;
+    usize caret_selection_end_offset = 0;
+    
+    if (caret->has_selection) {
+        caret_selection_start_offset = get_byte_offset_from_position(buffer, caret->line_offset, caret->column_offset);
+        caret_selection_end_offset = get_byte_offset_from_position(buffer, caret->trail_line_offset, caret->trail_column_offset);
+        if (caret_selection_start_offset > caret_selection_end_offset) {
+            usize temp = caret_selection_start_offset;
+            caret_selection_start_offset = caret_selection_end_offset;
+            caret_selection_end_offset = temp;
+        }
+    }
+
     // @Incomplete: If we fail to decode a codepoint, we shouldn't stop rendering the buffer contents. We should
     // probably render a special glyph (to signal that the file is corrupted there) and carry on...
     Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + byte_offset, buffer->size - byte_offset);
     while (is_valid(buffer_iterator)) {
         u32 codepoint = buffer_iterator.codepoint;
+        usize buffer_byte_offset = byte_offset + buffer_iterator.offset;
         advance(&buffer_iterator);
 
         TextCursorOverflow cursor_overflow = get_overflow(&cursor);
         if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
+
+        if ((caret_selection_start_offset <= buffer_byte_offset) &&
+            (buffer_byte_offset < caret_selection_end_offset))
+        {
+            // We are  rendering character that is inside the caret selection.
+            Rect2D cell_region = rect_offset_size(cursor.cursor, to_v2u(cursor.font->glyph_cell_size));
+            cell_region = rect_intersect(cell_region, buffer_region);
+
+            if (!is_degenerated(cell_region)) {
+                render_quad_opaque_unoptimized(cell_region, BACKGROUND_SELECTED_COLOR);
+            }
+        }
 
         if ('!' <= codepoint && codepoint <= '~') {
             if (!cursor_overflow.horizontal) {
@@ -286,6 +316,34 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset
         } else {
             // @Incomplete: Support more non-ASCII glyphs or at least display the raw hex values.
         }
+    }
+}
+
+internal void
+render_editor_caret(Rect2D buffer_region, EditorPanel* panel)
+{
+    Font* text_font = font_from_id(FontID_Text);
+
+    // Relative to the buffer top-left corner.
+    s32 line_index   = (s32)panel->caret.line_offset - (s32)panel->first_line_offset;
+    s32 column_index = (s32)panel->caret.column_offset - (s32)panel->first_column_offset;
+
+    if (line_index >= 0 && column_index >= 0) {
+        Vector2s caret_offset;
+        caret_offset.x = buffer_region.min.x + (column_index * text_font->glyph_cell_size.x);
+        caret_offset.y = buffer_region.max.y - text_font->glyph_cell_size.y - (line_index * text_font->line_height);
+
+        Vector2u caret_size;
+        caret_size.x = text_font->glyph_cell_size.x * CARET_SIZE_PERCENTAGE_X;
+        caret_size.y = text_font->glyph_cell_size.y * CARET_SIZE_PERCENTAGE_Y;
+
+        // Center the caret horizontally.
+        caret_offset.y += (text_font->glyph_cell_size.y - (s32)caret_size.y) / 2;
+
+        Rect2D caret_region = rect_offset_size(caret_offset, caret_size);
+        caret_region = rect_intersect(caret_region, buffer_region);
+        if (!is_degenerated(caret_region))
+            render_quad_opaque_unoptimized(caret_region, CARET_COLOR);
     }
 }
 
@@ -473,8 +531,11 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
         scrollbar_region.max.y = panel_region.max.y;
     }
 
-    if (!is_degenerated(buffer_region))
-        render_editor_buffer(buffer_region, &panel->buffer, panel->first_line_offset, panel->first_column_offset);
+    if (!is_degenerated(buffer_region)) {
+        render_editor_buffer(buffer_region, &panel->buffer, &panel->caret,
+                             panel->first_line_offset, panel->first_column_offset);
+        render_editor_caret(buffer_region, panel);
+    }
 
     if (!is_degenerated(scrollbar_region)) {
         render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
