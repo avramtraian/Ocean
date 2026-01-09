@@ -85,8 +85,13 @@ update_editor(EditorState* state)
     state->second_panel.scrollbar_offset_percentage = 0.2F;
     state->second_panel.scrollbar_height_percentage = 0.5F;
     
-    state->first_panel.caret.line_offset = 100;
-    state->first_panel.caret.column_offset = 0;
-    state->second_panel.caret.line_offset = 10;
-    state->second_panel.caret.column_offset = 5;
+    state->first_panel.first_line_offset = 100;
+    state->first_panel.first_column_offset = 0;
+    state->first_panel.caret.line_offset = 372;
+    state->first_panel.caret.column_offset = 25;
+
+    state->second_panel.first_line_offset = 10;
+    state->second_panel.first_column_offset = 5;
+    state->second_panel.caret.line_offset = 92;
+    state->second_panel.caret.column_offset = 7;
 }

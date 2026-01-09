@@ -474,7 +474,12 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     }
 
     if (!is_degenerated(buffer_region))
-        render_editor_buffer(buffer_region, &panel->buffer, panel->caret.line_offset, panel->caret.column_offset);
+        render_editor_buffer(buffer_region, &panel->buffer, panel->first_line_offset, panel->first_column_offset);
+
+    if (!is_degenerated(scrollbar_region)) {
+        render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
+                                panel->scrollbar_height_percentage, panel->scrollbar_state);
+    }
 
     //
     // NOTE(Traian): Finding the max line offset and max column offset of the current buffer is really not the
@@ -509,11 +514,6 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     if (!is_degenerated(titlebar_region)) {
         render_editor_titlebar(titlebar_region, panel->title, panel->caret.line_offset, panel->caret.column_offset,
                                max_line_offset, max_column_offset);
-    }
-
-    if (!is_degenerated(scrollbar_region)) {
-        render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
-                                panel->scrollbar_height_percentage, panel->scrollbar_state);
     }
 }
 

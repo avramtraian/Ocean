@@ -31,6 +31,9 @@ struct EditorPanel {
     EditorCaret caret;
     String title;
 
+    u32 first_line_offset;
+    u32 first_column_offset;
+
     ScrollbarState scrollbar_state;
     f32 scrollbar_offset_percentage;
     f32 scrollbar_height_percentage;
