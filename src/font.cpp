@@ -249,3 +249,13 @@ reload_global_fonts(GlobalFontsDescription* description)
     // load_font_freetype(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
     // load_font_freetype(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
 }
+
+internal Vector2u
+get_text_line_size(Font* font, String text)
+{
+    u32 codepoint_count = utf8_get_codepoint_count(text);
+    Vector2u result;
+    result.x = font->advance_width * codepoint_count;
+    result.y = font->ascent + (-font->descent);
+    return result;
+}

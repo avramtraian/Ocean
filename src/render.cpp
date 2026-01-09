@@ -217,7 +217,8 @@ constant usize SPLITTER_SIZE  = 8;
 
 const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
-const LinearColor TITLEBAR_COLOR             = linear_color(189, 180, 98);
+const LinearColor TITLEBAR_BACKGROUND_COLOR  = linear_color(189, 180, 98);
+const LinearColor TITLEBAR_FOREGROUND_COLOR  = linear_color(25, 25, 25);
 const LinearColor SPLITTER_COLOR             = linear_color(30, 30, 30);
 const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
@@ -289,9 +290,143 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset
 }
 
 internal void
-render_editor_titlebar(Rect2D titlebar_region, u32 line_offset, u32 column_offset)
+render_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u32 column_offset,
+                       u32 max_line_offset, u32 max_column_offset)
 {
-    render_quad_opaque_unoptimized(titlebar_region, TITLEBAR_COLOR);
+    render_quad_opaque_unoptimized(titlebar_region, TITLEBAR_BACKGROUND_COLOR);
+    Font* titlebar_font = font_from_id(FontID_UI);
+
+    // Offsets of the caret position start at 0, but the editor displays them starting from 1.
+    String line       = string_from_number((u64)line_offset + 1);
+    String column     = string_from_number((u64)column_offset + 1);
+    String max_line   = string_from_number((u64)max_line_offset + 1);
+    String max_column = string_from_number((u64)max_column_offset + 1);
+
+    u32 line_space_padding = max_line.size - line.size;
+    u32 column_space_padding = max_column.size - column.size;
+
+    u32 line_codepoint_count   = 2 + line.size + line_space_padding;
+    u32 column_codepoint_count = 2 + column.size + column_space_padding;
+    u32 title_codepoint_count  = utf8_get_codepoint_count(title.data, title.size);
+
+    // NOTE(Traian): @Cleanup: This routine is very convoluted, mostly due to a bad standard library.
+    // The purpose of this code is quite simple, find what information we can fit on the titlebar, construct
+    // that information message, and render it. The implementation of the first step is simple to understand,
+    // but would require a complete rewrite if we want to display more information other than title, line and
+    // column numbers. The second step should however be much concise!!!! (9th January 2026)
+
+    //
+    // Find what information we can fit on the titlebar:
+    //
+
+    u32 max_length = rect_size_x(titlebar_region) / titlebar_font->advance_width;
+    constant u32 MIN_TITLE_DISPLAY_COUNT = 8; // Even if we have available space, unless the title is actually shorter, we will never display less codepoints than this value from the title.
+    u32 min_title_display_count = min(title_codepoint_count, MIN_TITLE_DISPLAY_COUNT);
+
+    u32 line_and_column_count           = line_codepoint_count + 1 + column_codepoint_count;
+    u32 title_and_line_and_column_count = min_title_display_count + 1 + line_and_column_count;
+
+    bool display_title         = false;
+    bool display_line_number   = false;
+    bool display_column_number = false;
+
+    if (max_length >= title_and_line_and_column_count) {
+        display_title         = true;
+        display_line_number   = true;
+        display_column_number = true;
+    } else if (max_length >= line_and_column_count) {
+        display_line_number   = true;
+        display_column_number = true;
+    } else if (max_length >= line_codepoint_count) {
+        display_line_number = true;
+    } else {
+        // We don't have enough space to display anything.
+
+        // NOTE(Traian): @Incomplete: At this point, maybe we should hide the titlebar completely? Working with
+        // dimensions this small however means that the user doesn't really use the editor in this moment, so the
+        // complixty of the program we introduce by this "feature" will not be used very often! (9th January 2026)
+    }
+
+    //
+    // Construct the information message that will be rendered on the titlebar:
+    //
+
+    String titlebar_text = push_string_frame(4 * max_length); // Assume the worst case, when all codepoints are encoded as 4-byte sequences.
+    titlebar_text.size = 0; // We can freely change this value, as the memory is allocated from an arena.
+
+    if (display_title) {
+        u32 codepoint_count = min(max_length - (1 + line_and_column_count), title_codepoint_count);
+        u32 whitespace_count = max_length - (codepoint_count + line_and_column_count);
+
+        u32 current_codepoint_index = 0;
+        Utf8Iterator title_iterator = utf8_iterator(title.data, title.size);
+        while (current_codepoint_index < codepoint_count) {
+            ASSERT(is_valid(title_iterator));
+            copy_memory(titlebar_text.data + titlebar_text.size,
+                        title.data + title_iterator.offset,
+                        title_iterator.byte_width);
+            titlebar_text.size += title_iterator.byte_width;
+            ++current_codepoint_index;
+            advance(&title_iterator);
+        }
+
+        ASSERT(whitespace_count > 0);
+        for (u32 i = 0; i < whitespace_count; ++i) {
+            titlebar_text.data[titlebar_text.size] = ' ';
+            titlebar_text.size++;
+        }
+    }
+
+    if (display_line_number) {
+        String prefix = STRING_LIT("L#");
+        copy_memory(titlebar_text.data + titlebar_text.size, prefix.data, prefix.size);
+        titlebar_text.size += prefix.size;
+
+        copy_memory(titlebar_text.data + titlebar_text.size, line.data, line.size);
+        titlebar_text.size += line.size;
+
+        for (u32 i = 0; i < line_space_padding; ++i) {
+            titlebar_text.data[titlebar_text.size] = ' ';
+            titlebar_text.size++;
+        }
+    }
+
+    if (display_column_number) {
+        String prefix = STRING_LIT(" C#");
+        copy_memory(titlebar_text.data + titlebar_text.size, prefix.data, prefix.size);
+        titlebar_text.size += prefix.size;
+
+        copy_memory(titlebar_text.data + titlebar_text.size, column.data, column.size);
+        titlebar_text.size += column.size;
+
+        for (u32 i = 0; i < column_space_padding; ++i) {
+            titlebar_text.data[titlebar_text.size] = ' ';
+            titlebar_text.size++;
+        }
+    }
+
+    Vector2u text_line_size = get_text_line_size(titlebar_font, titlebar_text);
+    Rect2D text_region = {};
+    text_region.min.x = titlebar_region.min.x + (((s32)rect_size_x(titlebar_region) - text_line_size.x) / 2);
+    text_region.min.y = titlebar_region.min.y + (((s32)rect_size_y(titlebar_region) - text_line_size.y) / 2);
+    text_region.max.x = text_region.min.x + text_line_size.x;
+    text_region.max.y = text_region.min.y + text_line_size.y;
+
+    if (!is_degenerated(text_region)) {
+        TextCursor cursor = create_text_cursor(titlebar_font, text_region, v2s(0, 0));
+        for (Utf8Iterator iterator = utf8_iterator(titlebar_text);
+             is_valid(iterator);
+             advance(&iterator))
+        {
+            u32 codepoint = iterator.codepoint;
+            if ('!' <= codepoint && codepoint <= '~') {
+                auto* glyph = &titlebar_font->ascii_grayscale_glyphs_stb[codepoint - '!'];
+                Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
+                render_glyph_bitmap_unoptimized(glyph, glyph_offset, text_region, TITLEBAR_FOREGROUND_COLOR);
+            }
+            advance(&cursor);
+        }
+    }
 }
 
 internal void
@@ -341,8 +476,40 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     if (!is_degenerated(buffer_region))
         render_editor_buffer(buffer_region, &panel->buffer, panel->caret.line_offset, panel->caret.column_offset);
 
-    if (!is_degenerated(titlebar_region))
-        render_editor_titlebar(titlebar_region, panel->caret.line_offset, panel->caret.column_offset);
+    //
+    // NOTE(Traian): Finding the max line offset and max column offset of the current buffer is really not the
+    // reponsability of the rendering layer. This should obviously be handled by the update layer. However, there
+    // is no transient communication medium between the two layers, and storing these values as persistent state
+    // is not something I want to currently do... (9th January 2026)
+    //
+
+    u32 max_line_offset = 0;
+    u32 max_column_offset = 0;
+    u32 current_column_offset = 0;
+    for (Utf8Iterator buffer_iterator = utf8_iterator(panel->buffer.data, panel->buffer.size);
+         is_valid(buffer_iterator);
+         advance(&buffer_iterator))
+    {
+        u32 codepoint = buffer_iterator.codepoint;
+        if (codepoint == '\n') {
+            // @Cleanup, @Robustness: We should really handle the LF vs CRLF line encoding more seriously
+            // and consistently. There are multiple places in where we do the exact same steps as below...
+            auto peek_result = peek_next(buffer_iterator);
+            if (peek_result.is_valid && peek_result.codepoint == '\r')
+                advance(&buffer_iterator);
+
+            ++max_line_offset;
+            current_column_offset = 0;
+        } else {
+            ++current_column_offset;
+            max_column_offset = max(max_column_offset, current_column_offset);
+        }
+    }
+
+    if (!is_degenerated(titlebar_region)) {
+        render_editor_titlebar(titlebar_region, panel->title, panel->caret.line_offset, panel->caret.column_offset,
+                               max_line_offset, max_column_offset);
+    }
 
     if (!is_degenerated(scrollbar_region)) {
         render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
@@ -358,7 +525,7 @@ render_editor_splitter(Rect2D splitter_region)
     titlebar_intersection_region.min = splitter_region.min;
     titlebar_intersection_region.max.x = splitter_region.max.x;
     titlebar_intersection_region.max.y = splitter_region.min.y + TITLEBAR_SIZE;
-    render_quad_opaque_unoptimized(titlebar_intersection_region, TITLEBAR_COLOR);
+    render_quad_opaque_unoptimized(titlebar_intersection_region, TITLEBAR_BACKGROUND_COLOR);
 
     // @Cleanup: It would be really neat to actually use 'rect_intersect' in order to compute this regions!
     Rect2D buffer_intersection_region = {};

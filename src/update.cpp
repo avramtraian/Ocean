@@ -63,12 +63,14 @@ initialize_editor(EditorState* state)
     OSReadFileResult read_file_result1 = os_read_entire_file("C:/Dev/editor3/src/render.cpp");
     if (read_file_result1.is_valid)
         insert_into_buffer(&state->first_panel.buffer, 0, read_file_result1.data, read_file_result1.size);
+    state->first_panel.title = STRING_LIT("C:/Dev/editor3/src/render.cpp");
 
     state->second_panel.buffer = allocate_editor_buffer(MiB(1), GiB(1));
     // Load testing content for the second panel.
     OSReadFileResult read_file_result2 = os_read_entire_file("C:/Dev/editor3/src/update.cpp");
     if (read_file_result2.is_valid)
         insert_into_buffer(&state->second_panel.buffer, 0, read_file_result2.data, read_file_result2.size);
+    state->second_panel.title = STRING_LIT("C:/Dev/editor3/src/update.cpp");
 }
 
 internal void

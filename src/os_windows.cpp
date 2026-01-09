@@ -346,9 +346,9 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     // fonts_description.ui_small_name = "C:/Windows/Fonts/consola.ttf";
     // fonts_description.ui_big_name   = "C:/Windows/Fonts/consola.ttf";
     fonts_description.text_pixel_height     = 20;
-    fonts_description.ui_pixel_height       = 30;
-    fonts_description.ui_small_pixel_height = 20;
-    fonts_description.ui_big_pixel_height   = 40;
+    fonts_description.ui_pixel_height       = 20;
+    fonts_description.ui_small_pixel_height = 15;
+    fonts_description.ui_big_pixel_height   = 25;
     
     MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
     MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));

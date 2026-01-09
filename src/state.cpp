@@ -29,6 +29,7 @@ enum ScrollbarState : u8 {
 struct EditorPanel {
     EditorBuffer buffer;
     EditorCaret caret;
+    String title;
 
     ScrollbarState scrollbar_state;
     f32 scrollbar_offset_percentage;
