@@ -126,27 +126,92 @@ end_temporary_memory(TemporaryMemory* temporary_memory)
     ZERO_STRUCT_POINTER(temporary_memory);
 }
 
+enum StringSource : u8 {
+    StringSource_Literal,
+    StringSource_Malloc,
+    StringSource_Arena,
+};
+
 struct String {
     u8* data;
     usize size;
-    bool owns_memory;
+    StringSource source;
 };
 
 internal String
-create_string(u8* data, usize size, bool owns_memory)
+initialize_string(u8* data, usize size, StringSource source)
 {
     String result;
     result.data = data;
     result.size = size;
-    result.owns_memory = owns_memory;
+    result.source = source;
+    return result;
+}
+
+#define STRING_LIT(x) (initialize_string((u8*)(x), sizeof(x) - sizeof('\0'), StringSource_Literal))
+
+internal String
+new_string(usize size)
+{
+    String result;
+    result.data = (u8*)malloc(size);
+    result.size = size;
+    result.source = StringSource_Malloc;
+    return result;
+}
+
+internal String
+push_string(MemoryArena* arena, usize size)
+{
+    String result;
+    result.data = PUSH_ARRAY(arena, u8, size);
+    result.size = size;
+    result.source = StringSource_Arena;
+    return result;
+}
+
+internal String
+push_string_frame(usize size)
+{
+    MemoryArena* frame_arena = g_arenas.frame;
+    String result = push_string(frame_arena, size);
     return result;
 }
 
 internal void
 free(String* string)
 {
-    // @Leak!
+    if (string->source == StringSource_Malloc && string->size > 0)
+        free(string->data);
     ZERO_STRUCT_POINTER(string);
 }
 
-#define STRING_LIT(x) (create_string((u8*)(x), sizeof(x) - sizeof('\0'), false))
+internal String
+copy_string(String source_string)
+{
+    if (source_string.source == StringSource_Literal)
+        return source_string;
+
+    String result = new_string(source_string.size);
+    copy_memory(result.data, source_string.data, result.size);
+    return result;
+}
+
+internal String
+copy_string(String source_string, MemoryArena* arena)
+{
+    if (source_string.source == StringSource_Literal)
+        return source_string;
+
+    String result = push_string(arena, source_string.size);
+    copy_memory(result.data, source_string.data, result.size);
+    return result;
+}
+
+internal String
+copy_string_frame(String source_string)
+{
+    MemoryArena* frame_arena = g_arenas.frame;
+    String result = copy_string(source_string, frame_arena);
+    return result;
+}
