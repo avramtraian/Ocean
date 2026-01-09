@@ -255,6 +255,13 @@ utf8_iterator(void* data, usize size)
     return iterator;
 }
 
+internal Utf8Iterator
+utf8_iterator(String string)
+{
+    Utf8Iterator result = utf8_iterator(string.data, string.size);
+    return result;
+}
+
 internal bool
 is_valid(Utf8Iterator iterator)
 {
@@ -272,6 +279,14 @@ advance(Utf8Iterator* iterator)
         iterator->codepoint = iterator->last_decode_result.codepoint;
         iterator->byte_width = iterator->last_decode_result.byte_width;
     }
+}
+
+internal Utf8DecodeResult
+peek_next(Utf8Iterator iterator)
+{
+    ASSERT(is_valid(iterator));
+    advance(&iterator);
+    return iterator.last_decode_result;
 }
 
 internal usize
