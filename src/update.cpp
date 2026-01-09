@@ -75,10 +75,16 @@ internal void
 update_editor(EditorState* state)
 {
     state->is_splitscreen = true;
-    state->first_panel.scrollbar_state = ScrollbarState_Visible;
+
+    state->first_panel.scrollbar_state = ScrollbarState_Hidden;
     state->first_panel.scrollbar_offset_percentage = 0.0F;
     state->first_panel.scrollbar_height_percentage = 0.2F;
+    state->second_panel.scrollbar_state = ScrollbarState_Visible;
+    state->second_panel.scrollbar_offset_percentage = 0.2F;
+    state->second_panel.scrollbar_height_percentage = 0.5F;
     
     state->first_panel.caret.line_offset = 100;
+    state->first_panel.caret.column_offset = 0;
     state->second_panel.caret.line_offset = 10;
+    state->second_panel.caret.column_offset = 5;
 }

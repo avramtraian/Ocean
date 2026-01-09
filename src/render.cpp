@@ -240,11 +240,12 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset
 
     render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
 
+    // @Incomplete: If we fail to decode a codepoint, we shouldn't stop rendering the buffer contents. We should
+    // probably render a special glyph (to signal that the file is corrupted there) and carry on...
     Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + byte_offset, buffer->size - byte_offset);
     while (is_valid(buffer_iterator)) {
         u32 codepoint = buffer_iterator.codepoint;
         advance(&buffer_iterator);
-        if (codepoint >= 128) continue; // Ignore non-ASCII codepoints... for now...
 
         TextCursorOverflow cursor_overflow = get_overflow(&cursor);
         if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
@@ -257,9 +258,32 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, u32 line_offset
                 render_glyph_bitmap_unoptimized(glyph, glyph_offset, buffer_region, FOREGROUND_COLOR);
             }
             advance(&cursor);
+        } else if (codepoint == ' ') {
+            advance(&cursor);
+        } else if (codepoint == '\n') {
+            next_line(&cursor);
+
+            // @Cleanup: We should handle the CRLF/LF line ending dispute in a different way...
+            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r')
+                advance(&buffer_iterator);
+
+            // @Cleanup: This should use some utility function at least that consumes the current row..
+            u32 current_column_offset = 0;
+            while (current_column_offset < column_offset && is_valid(buffer_iterator)) {
+                // Let the next iteration of the outer while loop handle the new-line.
+                if (buffer_iterator.codepoint == '\n')
+                    break;
+
+                ++current_column_offset;
+                advance(&buffer_iterator);
+            }
+
+            // By the time we reached this point, we have either advance 'column_offset' codepoints (so we can
+            // start rendering again), we have reached the end of the buffer (so nothing matters anymore), or
+            // we have encountered a new-line character, so we let the next iteration handle it (since we haven't
+            // consumed it).
         } else {
-            if (codepoint == ' ')  advance(&cursor);
-            if (codepoint == '\n') next_line(&cursor);
+            // @Incomplete: Support more non-ASCII glyphs or at least display the raw hex values.
         }
     }
 }
