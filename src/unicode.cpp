@@ -273,3 +273,22 @@ advance(Utf8Iterator* iterator)
         iterator->byte_width = iterator->last_decode_result.byte_width;
     }
 }
+
+internal usize
+utf8_get_codepoint_count(void* data, usize size)
+{
+    usize codepoint_count = 0;
+    Utf8Iterator iterator = utf8_iterator(data, size);
+    while (is_valid(iterator)) {
+        ++codepoint_count;
+        advance(&iterator);
+    }
+    return codepoint_count;
+}
+
+internal usize
+utf8_get_codepoint_count(String string)
+{
+    usize result = utf8_get_codepoint_count(string.data, string.size);
+    return result;
+}
