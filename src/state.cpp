@@ -140,7 +140,17 @@ enum KeyCode : u16 {
     KeyCode_Four, KeyCode_Five, KeyCode_Six, KeyCode_Seven,
     KeyCode_Eight, KeyCode_Nine,
 
+    KeyCode_Tilde, KeyCode_Minus, KeyCode_Equal, KeyCode_LeftBracket, KeyCode_RightBracket,
+    KeyCode_Semicolon, KeyCode_Apostrophe, KeyCode_Backslash,
+    KeyCode_Comma, KeyCode_Dot, KeyCode_Slash,
+
+    KeyCode_Space, KeyCode_Tab,
+    KeyCode_Backspace, KeyCode_Delete, KeyCode_Insert,
+    KeyCode_Home, KeyCode_End,
+    KeyCode_Enter, KeyCode_Escape,
+
     KeyCode_Left, KeyCode_Right, KeyCode_Up, KeyCode_Down,
+    KeyCode_PageUp, KeyCode_PageDown,
 
     KeyCode_F1, KeyCode_F2, KeyCode_F3, KeyCode_F4,
     KeyCode_F5, KeyCode_F6, KeyCode_F7, KeyCode_F8,

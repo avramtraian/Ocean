@@ -421,35 +421,67 @@ win32_get_window_size()
     return result;
 }
 
-#define WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(x)                                \
-    x('A', KeyCode_A) x('B', KeyCode_B) x('C', KeyCode_C) x('D', KeyCode_D) \
-    x('E', KeyCode_E) x('F', KeyCode_F) x('G', KeyCode_G) x('H', KeyCode_H) \
-    x('I', KeyCode_I) x('J', KeyCode_J) x('K', KeyCode_K) x('L', KeyCode_L) \
-    x('M', KeyCode_M) x('N', KeyCode_N) x('O', KeyCode_O) x('P', KeyCode_P) \
-    x('Q', KeyCode_Q) x('R', KeyCode_R) x('S', KeyCode_S) x('T', KeyCode_T) \
-    x('U', KeyCode_U) x('V', KeyCode_V) x('W', KeyCode_W) x('X', KeyCode_X) \
-    x('Y', KeyCode_Y) x('Z', KeyCode_Z)                                     \
-    x(VK_LEFT, KeyCode_Left) x(VK_RIGHT, KeyCode_Right)                     \
-    x(VK_UP,   KeyCode_Up)   x(VK_DOWN,   KeyCode_Down)
+#define WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(x)                                    \
+    x('A', KeyCode_A) x('B', KeyCode_B) x('C', KeyCode_C) x('D', KeyCode_D)     \
+    x('E', KeyCode_E) x('F', KeyCode_F) x('G', KeyCode_G) x('H', KeyCode_H)     \
+    x('I', KeyCode_I) x('J', KeyCode_J) x('K', KeyCode_K) x('L', KeyCode_L)     \
+    x('M', KeyCode_M) x('N', KeyCode_N) x('O', KeyCode_O) x('P', KeyCode_P)     \
+    x('Q', KeyCode_Q) x('R', KeyCode_R) x('S', KeyCode_S) x('T', KeyCode_T)     \
+    x('U', KeyCode_U) x('V', KeyCode_V) x('W', KeyCode_W) x('X', KeyCode_X)     \
+    x('Y', KeyCode_Y) x('Z', KeyCode_Z)                                         \
+                                                                                \
+    x('0', KeyCode_Zero)  x('1', KeyCode_One)   x('2', KeyCode_Two)             \
+    x('3', KeyCode_Three) x('4', KeyCode_Four)  x('5', KeyCode_Five)            \
+    x('6', KeyCode_Six)   x('7', KeyCode_Seven) x('8', KeyCode_Eight)           \
+    x('9', KeyCode_Nine)                                                        \
+                                                                                \
+    x(VK_OEM_3,     KeyCode_Tilde)        x(VK_OEM_MINUS,  KeyCode_Minus)       \
+    x(VK_OEM_PLUS,  KeyCode_Equal)        x(VK_OEM_4,      KeyCode_LeftBracket) \
+    x(VK_OEM_6,     KeyCode_RightBracket) x(VK_OEM_1,      KeyCode_Semicolon)   \
+    x(VK_OEM_7,     KeyCode_Apostrophe)   x(VK_OEM_5,      KeyCode_Backslash)   \
+    x(VK_OEM_COMMA, KeyCode_Comma)        x(VK_OEM_PERIOD, KeyCode_Dot)         \
+    x(VK_OEM_2,     KeyCode_Slash)                                              \
+                                                                                \
+    x(VK_SPACE,  KeyCode_Space)     x(VK_TAB,    KeyCode_Tab)                   \
+    x(VK_BACK,   KeyCode_Backspace)                                             \
+    x(VK_DELETE, KeyCode_Delete)    x(VK_INSERT, KeyCode_Insert)                \
+    x(VK_HOME,   KeyCode_Home)      x(VK_END, KeyCode_End)                      \
+    x(VK_RETURN, KeyCode_Enter)     x(VK_ESCAPE, KeyCode_Escape)                \
+                                                                                \
+    x(VK_LEFT,  KeyCode_Left)   x(VK_RIGHT, KeyCode_Right)                      \
+    x(VK_UP,    KeyCode_Up)     x(VK_DOWN,  KeyCode_Down)                       \
+    x(VK_PRIOR, KeyCode_PageUp) x(VK_NEXT,  KeyCode_PageDown)                   \
+                                                                                \
+    x(VK_F1,  KeyCode_F1)  x(VK_F2,  KeyCode_F2)  x(VK_F3,  KeyCode_F3)         \
+    x(VK_F4,  KeyCode_F4)  x(VK_F5,  KeyCode_F5)  x(VK_F6,  KeyCode_F6)         \
+    x(VK_F7,  KeyCode_F7)  x(VK_F8,  KeyCode_F8)  x(VK_F9,  KeyCode_F9)         \
+    x(VK_F10, KeyCode_F10) x(VK_F11, KeyCode_F11) x(VK_F12, KeyCode_F12)        \
+                                                                                \
+    x(VK_SHIFT, KeyCode_Shift) x(VK_CONTROL, KeyCode_Control)                   \
+    x(VK_MENU, KeyCode_Alt)
 
 internal KeyCode
 win32_key_code_from_virtual_key(int virtual_key)
 {
-#define WIN32_MAPPING(vk, key_code) if (virtual_key == vk) return key_code;
-    WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
+    switch (virtual_key) {
+#define WIN32_MAPPING(virtual_key_value, key_code) case virtual_key_value: return key_code;
+      WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
 #undef WIN32_MAPPING
-    
-    return KeyCode_Unknown; // Unknown VK.
+
+      default: return KeyCode_Unknown; // Unknown VK.
+    }
 }
 
 internal int
 win32_virtual_key_from_key_code(KeyCode key_code)
 {
-#define WIN32_MAPPING(vk, key_code_value) if (key_code == key_code_value) return vk;
-    WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
+    switch (key_code) {
+#define WIN32_MAPPING(virtual_key, key_code_value) case key_code_value: return virtual_key;
+      WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
 #undef WIN32_MAPPING
-    
-    return 0; // Unknown key code.
+
+      default: return 0; // Unknown key code.
+    }
 }
 
 internal FrameInput g_frame_input;
