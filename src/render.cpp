@@ -209,11 +209,8 @@ next_line(TextCursor* cursor)
 // RENDER EDITOR FRAME:
 //
 
-constant usize TITLEBAR_SIZE            = 22;
-constant usize SCROLLBAR_SIZE           = 15;
-constant usize SPLITTER_SIZE            = 8;
-constant f32   CURSOR_SIZE_PERCENTAGE_X = 0.2F;
-constant f32   CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
+constant f32 CURSOR_SIZE_PERCENTAGE_X = 0.2F;
+constant f32 CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
 
 const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
@@ -236,10 +233,13 @@ const LinearColor CURSOR_COLOR               = linear_color(220, 220, 220);
 //
 
 internal void
-render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
+draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
                      usize selection_start_offset, usize selection_end_offset,
                      u32 line_offset, u32 column_offset)
 {
+    if (is_degenerated(buffer_region))
+        return;
+
     render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
 
     if (selection_start_offset > selection_end_offset) {
@@ -300,8 +300,11 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
 }
 
 internal void
-render_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
+draw_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
 {
+    if (is_degenerated(buffer_region))
+        return;
+
     Font* text_font = font_from_id(FontID_Text);
 
     // Relative to the buffer top-left corner.
@@ -329,9 +332,12 @@ render_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
 }
 
 internal void
-render_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u32 column_offset,
+draw_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u32 column_offset,
                        u32 max_line_offset, u32 max_column_offset)
 {
+    if (is_degenerated(titlebar_region))
+        return;
+
     render_quad_opaque_unoptimized(titlebar_region, TITLEBAR_BACKGROUND_COLOR);
     Font* titlebar_font = font_from_id(FontID_UI);
 
@@ -469,8 +475,11 @@ render_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u3
 }
 
 internal void
-render_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height, ScrollbarState state)
+draw_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height, ScrollbarState state)
 {
+    if (is_degenerated(scrollbar_region))
+        return;
+
     s32 scrollbar_height = rect_size_y(scrollbar_region) * height;
     s32 scrollbar_offset_y = lerp(scrollbar_region.max.y - scrollbar_height, scrollbar_region.min.y, offset);
     Rect2D scrollbar_box_region = {};
@@ -489,40 +498,16 @@ render_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height, Scrollb
 }
 
 internal void
-render_editor_panel(Rect2D panel_region, EditorPanel* panel)
+draw_editor_panel(EditorPanelLayout layout, EditorPanel* panel)
 {
-    Rect2D titlebar_region = {};
-    titlebar_region.min = panel_region.min;
-    titlebar_region.max.x = panel_region.max.x;
-    titlebar_region.max.y = panel_region.min.y + TITLEBAR_SIZE;
+    draw_editor_buffer(layout.buffer_region, &panel->buffer,
+                       panel->cursor.state.byte_offset, panel->cursor.state.trail_byte_offset,
+                       panel->first_line_offset, panel->first_column_offset);
+    
+    draw_editor_cursor(layout.buffer_region, panel);
 
-    Rect2D buffer_region = {};
-    Rect2D scrollbar_region = {};
-
-    buffer_region.min.x = panel_region.min.x;
-    buffer_region.max.x = panel_region.max.x;
-    buffer_region.min.y = titlebar_region.max.y;
-    buffer_region.max.y = panel_region.max.y;
-
-    if (panel->scrollbar_state != ScrollbarState_Hidden) {
-        buffer_region.max.x -= SCROLLBAR_SIZE;
-        scrollbar_region.min.x = buffer_region.max.x;
-        scrollbar_region.max.x = panel_region.max.x;
-        scrollbar_region.min.y = buffer_region.min.y;
-        scrollbar_region.max.y = panel_region.max.y;
-    }
-
-    if (!is_degenerated(buffer_region)) {
-        render_editor_buffer(buffer_region, &panel->buffer,
-                             panel->cursor.state.byte_offset, panel->cursor.state.trail_byte_offset,
-                             panel->first_line_offset, panel->first_column_offset);
-        render_editor_cursor(buffer_region, panel);
-    }
-
-    if (!is_degenerated(scrollbar_region)) {
-        render_editor_scrollbar(scrollbar_region, panel->scrollbar_offset_percentage,
-                                panel->scrollbar_height_percentage, panel->scrollbar_state);
-    }
+    draw_editor_scrollbar(layout.scrollbar_region, panel->scrollbar_offset_percentage,
+                          panel->scrollbar_height_percentage, panel->scrollbar_state);
 
     //
     // NOTE(Traian): Finding the max line offset and max column offset of the current buffer is really not the
@@ -554,16 +539,17 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
         }
     }
 
-    if (!is_degenerated(titlebar_region)) {
-        BufferPosition cursor = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
-        render_editor_titlebar(titlebar_region, panel->title, cursor.line_offset, cursor.column_offset,
-                               max_line_offset, max_column_offset);
-    }
+    BufferPosition cursor = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
+    draw_editor_titlebar(layout.titlebar_region, panel->title, cursor.line_offset, cursor.column_offset,
+                         max_line_offset, max_column_offset);
 }
 
 internal void
-render_editor_splitter(Rect2D splitter_region)
+draw_editor_splitter(Rect2D splitter_region)
 {
+    if (is_degenerated(splitter_region))
+        return;
+
     // @Cleanup: It would be really neat to actually use 'rect_intersect' in order to compute this regions!
     Rect2D titlebar_intersection_region = {};
     titlebar_intersection_region.min = splitter_region.min;
@@ -590,34 +576,16 @@ render_editor_frame(EditorState* state)
     if (bitmap_size.x == 0 || bitmap_size.y == 0)
         return;
 
+    bool single_panel_has_scrollbar = (state->first_panel.scrollbar_state  != ScrollbarState_Hidden);
+    bool left_panel_has_scrollbar   = (state->first_panel.scrollbar_state  != ScrollbarState_Hidden);
+    bool right_panel_has_scrollbar  = (state->second_panel.scrollbar_state != ScrollbarState_Hidden);
+    EditorLayout editor_layout = compute_editor_layout(bitmap_size, single_panel_has_scrollbar,
+                                                       left_panel_has_scrollbar, right_panel_has_scrollbar);
+
     if (state->is_splitscreen) {
-        Rect2D r_panel_region = {};
-        Rect2D l_panel_region = {};
-        s32 splitter_size = SPLITTER_SIZE;
-        if (state->first_panel.scrollbar_state != ScrollbarState_Hidden)
-            splitter_size = 0; // Hide the splitter when the scrollbar is already there.
-        s32 available_size_x = bitmap_size.x - splitter_size;
-
-        l_panel_region.min = v2s(0, 0);
-        l_panel_region.max = v2s(available_size_x / 2, bitmap_size.y);
-        r_panel_region.min = v2s(l_panel_region.max.x + splitter_size, 0);
-        r_panel_region.max = v2s(bitmap_size.x, bitmap_size.y);
-
-        if (!is_degenerated(l_panel_region) && !is_degenerated(r_panel_region)) {
-            render_editor_panel(l_panel_region, &state->first_panel);
-            render_editor_panel(r_panel_region, &state->second_panel);
-        }
-
-        Rect2D splitter_region = {};
-        splitter_region.min.x = l_panel_region.max.x;
-        splitter_region.min.y = 0;
-        splitter_region.max.x = r_panel_region.min.x;
-        splitter_region.max.y = bitmap_size.y;
-        if (!is_degenerated(splitter_region))
-            render_editor_splitter(splitter_region);
+        draw_editor_panel(editor_layout.left_panel, &state->first_panel);
+        draw_editor_panel(editor_layout.right_panel, &state->second_panel);
+        draw_editor_splitter(editor_layout.splitter_region);
     } else {
-        Rect2D panel_region = rect_offset_size(0, 0, bitmap_size.x, bitmap_size.y);
-        if (!is_degenerated(panel_region))
-            render_editor_panel(panel_region, &state->first_panel);
     }
 }

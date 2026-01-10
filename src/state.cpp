@@ -68,6 +68,89 @@ struct TransactionBuilder {
     CursorState* final_cursor_states;
 };
 
+struct EditorPanelLayout {
+    Rect2D region;
+    Rect2D buffer_region;
+    Rect2D titlebar_region;
+    Rect2D scrollbar_region;
+};
+
+struct EditorLayout {
+    EditorPanelLayout single_panel;
+    EditorPanelLayout left_panel;
+    EditorPanelLayout right_panel;
+    Rect2D splitter_region;
+};
+
+constant usize TITLEBAR_SIZE  = 22;
+constant usize SCROLLBAR_SIZE = 15;
+constant usize SPLITTER_SIZE  = 8;
+
+internal EditorPanelLayout
+compute_editor_panel_layout(Rect2D panel_region, bool has_scrollbar)
+{
+    EditorPanelLayout layout = {};
+    
+    layout.titlebar_region.min = panel_region.min;
+    layout.titlebar_region.max.x = panel_region.max.x;
+    layout.titlebar_region.max.y = panel_region.min.y + TITLEBAR_SIZE;
+
+    layout.buffer_region.min.x = panel_region.min.x;
+    layout.buffer_region.max.x = panel_region.max.x;
+    layout.buffer_region.min.y = layout.titlebar_region.max.y;
+    layout.buffer_region.max.y = panel_region.max.y;
+
+    if (has_scrollbar) {
+        layout.buffer_region.max.x -= SCROLLBAR_SIZE;
+        layout.scrollbar_region.min.x = layout.buffer_region.max.x;
+        layout.scrollbar_region.max.x = panel_region.max.x;
+        layout.scrollbar_region.min.y = layout.buffer_region.min.y;
+        layout.scrollbar_region.max.y = panel_region.max.y;
+    }
+
+    return layout;
+}
+
+internal EditorLayout
+compute_editor_layout(Vector2u window_size, bool single_panel_has_scrollbar,
+                      bool left_panel_has_scrollbar, bool right_panel_has_scrollbar)
+{
+    EditorLayout layout = {};
+
+    Rect2D single_panel_region = {};
+    Rect2D left_panel_region   = {};
+    Rect2D right_panel_region  = {};
+
+    // When using a single panel:
+    {
+        single_panel_region = rect_offset_size(0, 0, window_size.x, window_size.y);
+    }
+
+    // When in splitscreen:
+    {
+        s32 splitter_size = SPLITTER_SIZE;
+        if (left_panel_has_scrollbar)
+            splitter_size = 0; // Hide the splitter when the scrollbar is already there.
+        s32 available_size_x = window_size.x - splitter_size;
+
+        left_panel_region.min  = v2s(0, 0);
+        left_panel_region.max  = v2s(available_size_x / 2, window_size.y);
+        right_panel_region.min = v2s(left_panel_region.max.x + splitter_size, 0);
+        right_panel_region.max = v2s(window_size.x, window_size.y);
+
+        layout.splitter_region.min.x = left_panel_region.max.x;
+        layout.splitter_region.min.y = 0;
+        layout.splitter_region.max.x = right_panel_region.min.x;
+        layout.splitter_region.max.y = window_size.y;
+    }
+
+    layout.single_panel = compute_editor_panel_layout(single_panel_region, single_panel_has_scrollbar);
+    layout.left_panel   = compute_editor_panel_layout(left_panel_region,   left_panel_has_scrollbar);
+    layout.right_panel  = compute_editor_panel_layout(right_panel_region,  right_panel_has_scrollbar);
+
+    return layout;
+}
+
 struct EditorCursor {
     CursorState state;
     u32 desired_column_offset;
