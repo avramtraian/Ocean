@@ -56,6 +56,22 @@ insert_into_buffer(EditorBuffer* buffer, usize offset, void* data, usize data_si
 }
 
 internal void
+remove_from_buffer(EditorBuffer* buffer, usize offset, usize size)
+{
+    ASSERT(offset + size <= buffer->size);
+
+    usize dst_offset = offset;
+    usize src_offset = offset + size;
+    for (usize copy_index = 0; copy_index < buffer->size - (offset + size); ++copy_index) {
+        buffer->data[dst_offset] = buffer->data[src_offset];
+        ++dst_offset;
+        ++src_offset;
+    }
+
+    zero_memory(buffer->data + buffer->size - size, size);
+    buffer->size -= size;
+}
+internal void
 initialize_editor(EditorState* state)
 {
     state->first_panel.buffer = allocate_editor_buffer(MiB(1), GiB(1));
