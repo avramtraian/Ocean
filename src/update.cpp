@@ -43,8 +43,8 @@ insert_into_buffer(EditorBuffer* buffer, usize offset, void* data, usize data_si
 
     // Shift the rest of the buffer to the right.
     usize dst_offset = buffer->size + data_size - 1;
-    usize src_offset = offset + data_size - 1;
-    for (usize copy_index = 0; copy_index < data_size; ++copy_index) {
+    usize src_offset = buffer->size - 1;
+    for (usize copy_index = 0; copy_index < buffer->size - offset; ++copy_index) {
         buffer->data[dst_offset] = buffer->data[src_offset];
         --dst_offset;
         --src_offset;
