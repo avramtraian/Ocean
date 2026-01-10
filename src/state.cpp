@@ -3,6 +3,80 @@
  * This file is part of my personal text editor and is distributed under the MIT license.
  */
 
+enum TransactionStepType : u8 {
+    TransactionStepType_Insertion,
+    TransactionStepType_Deletion,
+};
+
+struct TransactionStep {
+    TransactionStepType type;
+    usize operation_offset;
+    usize operation_size;
+    u8* data;
+};
+
+struct CursorState {
+    u32 line_offset;
+    u32 column_offset;
+    bool is_selecting;
+    u32 trail_line_offset;
+    u32 trail_column_offset;
+};
+
+//
+// Layout of a transaction memory footprint:
+//   [0] Transaction structure  (sizeof(Transaction))
+//   [1] Transaction steps      (sizeof(TransactionStep) * step_count)
+//   [2] Initial cursor states  (sizeof(CursorState)     * cursor_count)
+//   [3] Final cursor states    (sizeof(CursorState)     * cursor_count)
+//   [4] Serialized step data   (variable)
+//
+
+struct Transaction {
+    Transaction* next;
+    Transaction* prev;
+    usize allocation_size;
+    u32 step_count;
+    u32 cursor_count;
+
+    // @Cleanup: These addresses can be calculated from scratch, so there is no point
+    // in storing them here!
+    TransactionStep* steps;
+    CursorState*     initial_cursor_states;
+    CursorState*     final_cursor_states;
+};
+
+struct TransactionHistory {
+    // @Memory: Since we allocate one transaction history per opened file, and during an editor session
+    // we can open hundreds of files, allocating a "full" ring buffer will consume way more memory than
+    // any other system. One way to fix this is to grow the buffer as a dynamic array until a certain
+    // threshold (e.g use a linear buffer that grows similar to a dynamic array until the transaction
+    // history hits 1MiB of memory usage, then use a ring buffer of 8MiB).
+
+    // @Memory: Another optimization we can do regarding memory consumption is to compress the transactions
+    // for the common case: inserting a single character. 99% of the time the transaction is just inserting
+    // a single byte (ASCII character), using a single cursor!
+
+    OSRingBuffer buffer;
+    Transaction* first_transaction;
+    Transaction* last_transaction;
+    Transaction* last_committed_transaction;
+};
+
+struct TransactionStepEntry {
+    TransactionStepEntry* next;
+    TransactionStep step;
+};
+
+struct TransactionBuilder {
+    u32 step_count;
+    TransactionStepEntry* first_step;
+    TransactionStepEntry* last_step;
+    u32 cursor_count;
+    CursorState* initial_cursor_states;
+    CursorState* final_cursor_states;
+};
+
 struct EditorCaret {
     u32 desired_column_offset;
     u32 line_offset;
@@ -30,6 +104,11 @@ struct EditorPanel {
     EditorBuffer buffer;
     EditorCaret caret;
     String title;
+
+    // @Cleanup: Transactions histories should be stored per editor buffer and not per
+    // editor panel! We currently store it here because we only use it for testing purposes
+    // and it's easier to access it from here (one less level of indirection).
+    TransactionHistory history;
 
     u32 first_line_offset;
     u32 first_column_offset;

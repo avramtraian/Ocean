@@ -87,6 +87,14 @@ struct OSWindowBitmap {
     usize allocation_size;
 };
 
+struct OSRingBuffer {
+    u8* data;
+    usize size;
+    usize used;
+    usize head;
+    usize tail;
+};
+
 internal void               win32_handle_assertion_failed   (char* expression, char* file_name, char* function_signature, int line_number);
 internal struct Vector2u    win32_get_window_size           ();
 internal LRESULT            win32_window_procedure          (HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param);
@@ -101,6 +109,13 @@ internal void               os_free_memory                  (void* address);
 internal void               os_decommit_memory              (void* address, usize size);
 internal OSReadFileResult   os_read_entire_file             (char* file_name);
 internal void               os_free_read_file_result        (OSReadFileResult result);
+
+internal OSRingBuffer       os_allocate_ring_buffer         (usize size);
+internal void               os_free_ring_buffer             (OSRingBuffer* buffer);
+internal void*              os_allocate_from_ring_buffer    (OSRingBuffer* buffer, usize size, usize alignment);
+internal void               os_pop_oldest_from_ring_buffer  (OSRingBuffer* buffer, usize size);
+internal void               os_pop_newest_from_ring_buffer  (OSRingBuffer* buffer, usize size);
+internal void               os_reset_ring_buffer            (OSRingBuffer* buffer);
 
 #define ASSERT(...)                                                                   \
     if (!(__VA_ARGS__)) {                                                             \
@@ -273,6 +288,108 @@ os_free_read_file_result(OSReadFileResult result)
 {
     if (result.is_valid && result.size > 0)
         os_free_memory(result.data);
+}
+
+typedef PVOID(WINAPI PFN_VirtualAlloc2)(HANDLE, PVOID, SIZE_T, ULONG, ULONG, MEM_EXTENDED_PARAMETER*, ULONG);
+typedef PVOID(WINAPI PFN_MapViewOfFile3)(HANDLE, HANDLE, PVOID, ULONG64, SIZE_T, ULONG, ULONG, MEM_EXTENDED_PARAMETER*, ULONG);
+
+internal OSRingBuffer
+os_allocate_ring_buffer(usize size)
+{
+    local_persistent PFN_VirtualAlloc2* VirtualAlloc2 = NULL;
+    local_persistent PFN_MapViewOfFile3* MapViewOfFile3 = NULL;
+    if (VirtualAlloc2 == NULL || MapViewOfFile3 == NULL) {
+        HMODULE kernel32 = GetModuleHandle("kernelbase.dll");
+        VirtualAlloc2  = (PFN_VirtualAlloc2* )GetProcAddress(kernel32, "VirtualAlloc2");
+        MapViewOfFile3 = (PFN_MapViewOfFile3*)GetProcAddress(kernel32, "MapViewOfFile3");
+
+        ASSERT(VirtualAlloc2); // Windows version is too old...
+        ASSERT(MapViewOfFile3); // Windows version is too old...
+    }
+
+    ASSERT(os_is_memory_page_aligned(size));
+    HANDLE mapping = CreateFileMappingA(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+                                        (DWORD)(size >> 32), (DWORD)(size & 0xFFFFFFFF), NULL);
+    ASSERT(mapping);
+
+    // Allocate a large region sufficient to map the buffer contents twice.
+    u8* base_address = (u8*)VirtualAlloc2(GetCurrentProcess(), NULL, 2 * size,
+                                          MEM_RESERVE | MEM_RESERVE_PLACEHOLDER, PAGE_NOACCESS, NULL, 0);
+
+    // Calling VirtualFree on the first half with MEM_PRESERVE_PLACEHOLDER 
+    // splits the single (2*size) placeholder into two adjacent (size) placeholders.
+    bool split_result = VirtualFree(base_address, size, MEM_RELEASE | MEM_PRESERVE_PLACEHOLDER);
+    ASSERT(split_result);
+
+    MapViewOfFile3(mapping, GetCurrentProcess(), base_address       , 0, size, MEM_REPLACE_PLACEHOLDER, PAGE_READWRITE, NULL, 0);
+    MapViewOfFile3(mapping, GetCurrentProcess(), base_address + size, 0, size, MEM_REPLACE_PLACEHOLDER, PAGE_READWRITE, NULL, 0);
+
+    CloseHandle(mapping);
+
+    OSRingBuffer result = {};
+    result.data = base_address;
+    result.size = size;
+    result.used = 0;
+    result.head = 0;
+    result.tail = 0;
+    return result;
+}
+
+internal void
+os_free_ring_buffer(OSRingBuffer* buffer)
+{
+    // @Leak!
+    ZERO_STRUCT_POINTER(buffer);
+}
+
+internal void*
+os_allocate_from_ring_buffer(OSRingBuffer* buffer, usize size, usize alignment)
+{
+    uintptr unaligned_address = (uintptr)buffer->data + buffer->head;
+    uintptr aligned_address = align_to_pow2(unaligned_address, alignment); // Should always be a power of 2.
+    usize alignment_offset = aligned_address - unaligned_address;
+    usize total_size = alignment_offset + size;
+
+    if (buffer->used + total_size > buffer->size) {
+        // It's impossible to allocate a block this big.
+        return NULL;
+    }
+
+    usize size_mask = buffer->size - 1; // Always a power of 2.
+    buffer->head = (buffer->head + total_size) & size_mask;
+    buffer->used += total_size;
+
+    void* address = (void*)aligned_address;
+    zero_memory(address, size);
+    return address;
+}
+
+internal void
+os_pop_oldest_from_ring_buffer(OSRingBuffer* buffer, usize size)
+{
+    ASSERT(size <= buffer->used);
+
+    usize size_mask = buffer->size - 1; // Always a power of 2.
+    buffer->tail = (buffer->tail + size) & size_mask;
+    buffer->used -= size;
+}
+
+internal void
+os_pop_newest_from_ring_buffer(OSRingBuffer* buffer, usize size)
+{
+    ASSERT(size <= buffer->used);
+
+    usize size_mask = buffer->size - 1; // Always a power of 2.
+    buffer->head = ((buffer->head + buffer->size) - size) & size_mask;
+    buffer->used -= size;
+}
+
+internal void
+os_reset_ring_buffer(OSRingBuffer* buffer)
+{
+    buffer->used = 0;
+    buffer->head = 0;
+    buffer->tail = 0;
 }
 
 //
