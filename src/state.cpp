@@ -45,6 +45,67 @@ struct EditorState {
     EditorPanel second_panel;
 };
 
+struct KeyState {
+    bool is_down;
+    bool was_pressed_this_frame;
+    bool was_released_this_frame;
+    bool received_key_down_event;
+};
+
+enum KeyCode : u16 {
+    KeyCode_Unknown = 0,
+    
+    KeyCode_A, KeyCode_B, KeyCode_C, KeyCode_D,
+    KeyCode_E, KeyCode_F, KeyCode_G, KeyCode_H,
+    KeyCode_I, KeyCode_J, KeyCode_K, KeyCode_L,
+    KeyCode_M, KeyCode_N, KeyCode_O, KeyCode_P,
+    KeyCode_Q, KeyCode_R, KeyCode_S, KeyCode_T,
+    KeyCode_U, KeyCode_V, KeyCode_W, KeyCode_X,
+    KeyCode_Y, KeyCode_Z,
+
+    KeyCode_Zero, KeyCode_One, KeyCode_Two, KeyCode_Three,
+    KeyCode_Four, KeyCode_Five, KeyCode_Six, KeyCode_Seven,
+    KeyCode_Eight, KeyCode_Nine,
+
+    KeyCode_Left, KeyCode_Right, KeyCode_Up, KeyCode_Down,
+
+    KeyCode_F1, KeyCode_F2, KeyCode_F3, KeyCode_F4,
+    KeyCode_F5, KeyCode_F6, KeyCode_F7, KeyCode_F8,
+    KeyCode_F9, KeyCode_F10, KeyCode_F11, KeyCode_F12,
+
+    KeyCode_Control, KeyCode_Alt, KeyCode_Shift,
+
+    KeyCode_MaxEnumCount,
+};
+
+struct KeyboardInput {
+    constant usize key_count = KeyCode_MaxEnumCount;
+    KeyState keys[key_count];
+    u32 char_event_codepoint;
+};
+
+enum MouseButton : u8 {
+    MouseButton_Unknown,
+    MouseButton_Left,
+    MouseButton_Right,
+    MouseButton_MaxEnumCount,
+};
+
+struct MouseInput {
+    constant usize button_count = MouseButton_MaxEnumCount;
+    KeyState buttons[button_count];
+    Vector2s position;
+    f32 scroll_offset_x;
+    f32 scroll_offset_y;
+};
+
+struct FrameInput {
+    KeyboardInput keyboard;
+    KeyboardInput mouse;
+    f32 delta_time;
+    f32 current_time;
+};
+
 internal usize
 get_byte_offset_from_position(EditorBuffer* buffer, u32 line_offset, u32 column_offset)
 {

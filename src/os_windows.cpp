@@ -304,6 +304,39 @@ win32_get_window_size()
     return result;
 }
 
+#define WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(x)                                \
+    x('A', KeyCode_A) x('B', KeyCode_B) x('C', KeyCode_C) x('D', KeyCode_D) \
+    x('E', KeyCode_E) x('F', KeyCode_F) x('G', KeyCode_G) x('H', KeyCode_H) \
+    x('I', KeyCode_I) x('J', KeyCode_J) x('K', KeyCode_K) x('L', KeyCode_L) \
+    x('M', KeyCode_M) x('N', KeyCode_N) x('O', KeyCode_O) x('P', KeyCode_P) \
+    x('Q', KeyCode_Q) x('R', KeyCode_R) x('S', KeyCode_S) x('T', KeyCode_T) \
+    x('U', KeyCode_U) x('V', KeyCode_V) x('W', KeyCode_W) x('X', KeyCode_X) \
+    x('Y', KeyCode_Y) x('Z', KeyCode_Z)                                     \
+    x(VK_LEFT, KeyCode_Left) x(VK_RIGHT, KeyCode_Right)                     \
+    x(VK_UP,   KeyCode_Up)   x(VK_DOWN,   KeyCode_Down)
+
+internal KeyCode
+win32_key_code_from_virtual_key(int virtual_key)
+{
+#define WIN32_MAPPING(vk, key_code) if (virtual_key == vk) return key_code;
+    WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
+#undef WIN32_MAPPING
+    
+    return KeyCode_Unknown; // Unknown VK.
+}
+
+internal int
+win32_virtual_key_from_key_code(KeyCode key_code)
+{
+#define WIN32_MAPPING(vk, key_code_value) if (key_code == key_code_value) return vk;
+    WIN32_MAP_VIRTUAL_KEY_TO_KEY_CODE(WIN32_MAPPING);
+#undef WIN32_MAPPING
+    
+    return 0; // Unknown key code.
+}
+
+internal FrameInput g_frame_input;
+
 internal LRESULT
 win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
 {
@@ -313,9 +346,66 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
         g_window_should_close = true;
         return 0;
       }
+
+      case WM_KEYDOWN:
+      case WM_SYSKEYDOWN: {
+        int virtual_key = w_param;
+        KeyCode key_code = win32_key_code_from_virtual_key(virtual_key);
+        g_frame_input.keyboard.keys[key_code].received_key_down_event = true;
+        return 0;
+      }
     }
 
     return DefWindowProcA(window_handle, message, w_param, l_param);
+}
+
+internal void
+win32_reset_frame_input()
+{
+    for (KeyCode key_code = KeyCode_Unknown;
+         key_code < KeyCode_MaxEnumCount;
+         key_code = (KeyCode)(key_code + 1))
+    {
+        KeyState* key_state = &g_frame_input.keyboard.keys[key_code];
+        key_state->was_pressed_this_frame = false;
+        key_state->was_released_this_frame = false;
+        key_state->received_key_down_event = false;
+    }
+}
+
+internal void
+win32_query_frame_input()
+{
+    HWND focused_window = GetFocus();
+    bool window_has_focus = (focused_window == g_window_handle);
+
+    for (KeyCode key_code = KeyCode_Unknown;
+         key_code < KeyCode_MaxEnumCount;
+         key_code = (KeyCode)(key_code + 1))
+    {
+        KeyState* key_state = &g_frame_input.keyboard.keys[key_code];
+        bool was_previously_down = key_state->is_down;
+        key_state->is_down = false;
+
+        // NOTE(Traian): This ensures that when losing window focus (for whatever reason) all keys that are
+        // currently down will have the 'was_released_this_frame' flag set to true during this frame. If we
+        // however regain focus without the key being released, we will set the 'was_pressed_this_frame' flag,
+        // but the window procedure will not set 'received_key_down_event'. This inconsistency might be a problem,
+        // but fixing it would introduce quite a bit of complexity in input state management. (9th January 2026)
+
+        if (window_has_focus) {
+            int virtual_key = win32_virtual_key_from_key_code(key_code);
+            SHORT win32_key_state = GetKeyState(virtual_key);
+            if (win32_key_state & (1 << 15))
+                key_state->is_down = true;
+        }
+
+        if (key_state->is_down && !was_previously_down)
+            key_state->was_pressed_this_frame = true;
+
+        if (!key_state->is_down && was_previously_down)
+            key_state->was_released_this_frame = true;
+    }
 }
 
 INT WINAPI
@@ -365,6 +455,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     g_window_should_close = false;
     while (!g_window_should_close) {
         // Process the message queue.
+        win32_reset_frame_input();
         MSG window_message = {};
         while (PeekMessageA(&window_message, g_window_handle, 0, 0, PM_REMOVE)) {
             TranslateMessage(&window_message);
@@ -388,7 +479,8 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         g_window_bitmap.size_y = window_size.y;
         zero_memory(g_window_bitmap.pixels, g_window_bitmap.number_of_rows * g_window_bitmap.bytes_per_row);
 
-        update_editor(&editor_state);
+        win32_query_frame_input();
+        update_editor(&editor_state, &g_frame_input);
         render_editor_frame(&editor_state);
 
         // Display the window bitmap to the screen.

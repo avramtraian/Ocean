@@ -87,11 +87,7 @@ initialize_editor(EditorState* state)
     if (read_file_result2.is_valid)
         insert_into_buffer(&state->second_panel.buffer, 0, read_file_result2.data, read_file_result2.size);
     state->second_panel.title = STRING_LIT("C:/Dev/editor3/src/update.cpp");
-}
 
-internal void
-update_editor(EditorState* state)
-{
     state->is_splitscreen = true;
 
     state->first_panel.scrollbar_state = ScrollbarState_Hidden;
@@ -101,7 +97,7 @@ update_editor(EditorState* state)
     state->second_panel.scrollbar_offset_percentage = 0.2F;
     state->second_panel.scrollbar_height_percentage = 0.5F;
     
-    state->first_panel.first_line_offset = 100;
+    state->first_panel.first_line_offset = 0;
     state->first_panel.first_column_offset = 0;
     state->first_panel.caret.line_offset = 104;
     state->first_panel.caret.column_offset = 10;
@@ -113,4 +109,9 @@ update_editor(EditorState* state)
     state->second_panel.first_column_offset = 5;
     state->second_panel.caret.line_offset = 92;
     state->second_panel.caret.column_offset = 7;
+}
+
+internal void
+update_editor(EditorState* state, FrameInput* frame_input)
+{
 }
