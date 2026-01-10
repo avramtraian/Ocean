@@ -394,16 +394,13 @@ initialize_editor(EditorState* state)
     
     state->first_panel.first_line_offset = 0;
     state->first_panel.first_column_offset = 0;
-    state->first_panel.caret.line_offset = 104;
-    state->first_panel.caret.column_offset = 10;
-    state->first_panel.caret.has_selection = true;
-    state->first_panel.caret.trail_line_offset = 104;
-    state->first_panel.caret.trail_column_offset = 7;
+    state->first_panel.cursor.state.byte_offset       = 0;
+    state->first_panel.cursor.state.trail_byte_offset = 0;
 
     state->second_panel.first_line_offset = 10;
     state->second_panel.first_column_offset = 5;
-    state->second_panel.caret.line_offset = 92;
-    state->second_panel.caret.column_offset = 7;
+    state->second_panel.cursor.state.byte_offset       = 100;
+    state->second_panel.cursor.state.trail_byte_offset = 100;
 
     state->first_panel.history.buffer = os_allocate_ring_buffer(MiB(4));
     state->second_panel.history.buffer = os_allocate_ring_buffer(MiB(4));
@@ -413,24 +410,29 @@ internal void
 update_editor(EditorState* state, FrameInput* frame_input)
 {
     if (frame_input->keyboard.keys[KeyCode_Right].received_key_down_event) {
-        state->first_panel.caret.column_offset++;
+        if (state->first_panel.cursor.state.byte_offset < state->first_panel.buffer.size)
+            state->first_panel.cursor.state.byte_offset++;
     }
 
     if (frame_input->keyboard.keys[KeyCode_Left].received_key_down_event) {
-        if (state->first_panel.caret.column_offset > 0)
-            state->first_panel.caret.column_offset--;
-        else if (state->first_panel.caret.line_offset > 0)
-            state->first_panel.caret.line_offset--;
+        if (state->first_panel.cursor.state.byte_offset > 0)
+            state->first_panel.cursor.state.byte_offset--;
     }
 
     TransactionHistory* history = &state->first_panel.history;
 
-    if (frame_input->keyboard.keys[KeyCode_A].received_key_down_event) {
-        TransactionBuilder builder = {};
-        append_insertion_step(&builder, g_arenas.frame, 0, "a", 1);
-        Transaction* transaction = serialize_transaction(history, &builder);
-        commit_transaction(transaction, &state->first_panel);
-        history->last_committed_transaction = transaction;
+    for (u16 key_code = KeyCode_A; key_code <= KeyCode_Z; ++key_code) {
+        if (key_code == KeyCode_Z || key_code == KeyCode_Y) continue;
+        char characters[] = "abcdefghijklmnopqrstuvwxyz";
+
+        if (frame_input->keyboard.keys[key_code].received_key_down_event) {
+            TransactionBuilder builder = {};
+            local_persistent usize s_offset = 0;
+            append_insertion_step(&builder, g_arenas.frame, s_offset++, &characters[key_code - KeyCode_A], 1);
+            Transaction* transaction = serialize_transaction(history, &builder);
+            commit_transaction(transaction, &state->first_panel);
+            history->last_committed_transaction = transaction;
+        }
     }
     
     /*

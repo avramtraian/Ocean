@@ -209,11 +209,11 @@ next_line(TextCursor* cursor)
 // RENDER EDITOR FRAME:
 //
 
-constant usize TITLEBAR_SIZE           = 22;
-constant usize SCROLLBAR_SIZE          = 15;
-constant usize SPLITTER_SIZE           = 8;
-constant f32   CARET_SIZE_PERCENTAGE_X = 0.2F;
-constant f32   CARET_SIZE_PERCENTAGE_Y = 1.3F;
+constant usize TITLEBAR_SIZE            = 22;
+constant usize SCROLLBAR_SIZE           = 15;
+constant usize SPLITTER_SIZE            = 8;
+constant f32   CURSOR_SIZE_PERCENTAGE_X = 0.2F;
+constant f32   CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
 
 const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
@@ -225,7 +225,7 @@ const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
 const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
 const LinearColor SCROLLBAR_IN_USE_COLOR     = linear_color(120, 120, 120);
-const LinearColor CARET_COLOR                = linear_color(220, 220, 220);
+const LinearColor CURSOR_COLOR               = linear_color(220, 220, 220);
 
 //
 // NOTE(Traian): The rendering routine for the editor buffer currently does too many things, such as determining
@@ -236,42 +236,40 @@ const LinearColor CARET_COLOR                = linear_color(220, 220, 220);
 //
 
 internal void
-render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* caret, u32 line_offset, u32 column_offset)
+render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
+                     usize selection_start_offset, usize selection_end_offset,
+                     u32 line_offset, u32 column_offset)
 {
-    TextCursor cursor = create_text_cursor(font_from_id(FontID_Text), buffer_region, v2s(0, 0));
-    usize byte_offset = get_byte_offset_from_position(buffer, line_offset, column_offset);
-
     render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
 
-    usize caret_selection_start_offset = 0;
-    usize caret_selection_end_offset = 0;
-    
-    if (caret->has_selection) {
-        caret_selection_start_offset = get_byte_offset_from_position(buffer, caret->line_offset, caret->column_offset);
-        caret_selection_end_offset = get_byte_offset_from_position(buffer, caret->trail_line_offset, caret->trail_column_offset);
-        if (caret_selection_start_offset > caret_selection_end_offset) {
-            usize temp = caret_selection_start_offset;
-            caret_selection_start_offset = caret_selection_end_offset;
-            caret_selection_end_offset = temp;
-        }
+    if (selection_start_offset > selection_end_offset) {
+        usize temp = selection_start_offset;
+        selection_start_offset = selection_end_offset;
+        selection_end_offset = temp;
     }
 
+    Font* font = font_from_id(FontID_Text);
+
+    Vector2s cursor_start_offset = v2s(-column_offset * font->glyph_cell_size.x, 0);
+    TextCursor cursor = create_text_cursor(font, buffer_region, cursor_start_offset);
+
+    usize line_byte_offset = get_line_byte_offset(buffer, line_offset);
     // @Incomplete: If we fail to decode a codepoint, we shouldn't stop rendering the buffer contents. We should
     // probably render a special glyph (to signal that the file is corrupted there) and carry on...
-    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + byte_offset, buffer->size - byte_offset);
+    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + line_byte_offset, buffer->size - line_byte_offset);
     while (is_valid(buffer_iterator)) {
         u32 codepoint = buffer_iterator.codepoint;
-        usize buffer_byte_offset = byte_offset + buffer_iterator.offset;
+        usize buffer_byte_offset = line_byte_offset + buffer_iterator.offset;
         advance(&buffer_iterator);
 
         TextCursorOverflow cursor_overflow = get_overflow(&cursor);
         if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
 
-        if ((caret_selection_start_offset <= buffer_byte_offset) &&
-            (buffer_byte_offset < caret_selection_end_offset))
+        if ((selection_start_offset <= buffer_byte_offset) &&
+            (buffer_byte_offset < selection_end_offset))
         {
-            // We are  rendering character that is inside the caret selection.
-            Rect2D cell_region = rect_offset_size(cursor.cursor, to_v2u(cursor.font->glyph_cell_size));
+            // We are rendering character that is inside the cursor selection.
+            Rect2D cell_region = rect_offset_size(cursor.current_cell_offset, to_v2u(font->glyph_cell_size));
             cell_region = rect_intersect(cell_region, buffer_region);
 
             if (!is_degenerated(cell_region)) {
@@ -282,7 +280,7 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* ca
         if ('!' <= codepoint && codepoint <= '~') {
             if (!cursor_overflow.horizontal) {
                 // auto* glyph = &cursor.font->ascii_subpixel_glyphs_freetype[codepoint - '!'];
-                auto* glyph = &cursor.font->ascii_grayscale_glyphs_stb[codepoint - '!'];
+                auto* glyph = &font->ascii_grayscale_glyphs_stb[codepoint - '!'];
                 Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
                 render_glyph_bitmap_unoptimized(glyph, glyph_offset, buffer_region, FOREGROUND_COLOR);
             }
@@ -290,27 +288,11 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* ca
         } else if (codepoint == ' ') {
             advance(&cursor, 1);
         } else if (codepoint == '\n') {
-            next_line(&cursor);
-
             // @Cleanup: We should handle the CRLF/LF line ending dispute in a different way...
             if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r')
                 advance(&buffer_iterator);
-
-            // @Cleanup: This should use some utility function at least that consumes the current row..
-            u32 current_column_offset = 0;
-            while (current_column_offset < column_offset && is_valid(buffer_iterator)) {
-                // Let the next iteration of the outer while loop handle the new-line.
-                if (buffer_iterator.codepoint == '\n')
-                    break;
-
-                ++current_column_offset;
-                advance(&buffer_iterator);
-            }
-
-            // By the time we reached this point, we have either advance 'column_offset' codepoints (so we can
-            // start rendering again), we have reached the end of the buffer (so nothing matters anymore), or
-            // we have encountered a new-line character, so we let the next iteration handle it (since we haven't
-            // consumed it).
+            
+            next_line(&cursor);
         } else {
             // @Incomplete: Support more non-ASCII glyphs or at least display the raw hex values.
         }
@@ -318,30 +300,31 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* ca
 }
 
 internal void
-render_editor_caret(Rect2D buffer_region, EditorPanel* panel)
+render_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
 {
     Font* text_font = font_from_id(FontID_Text);
 
     // Relative to the buffer top-left corner.
-    s32 line_index   = (s32)panel->caret.line_offset - (s32)panel->first_line_offset;
-    s32 column_index = (s32)panel->caret.column_offset - (s32)panel->first_column_offset;
+    BufferPosition cursor_position = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
+    s32 line_index   = (s32)cursor_position.line_offset   - (s32)panel->first_line_offset;
+    s32 column_index = (s32)cursor_position.column_offset - (s32)panel->first_column_offset;
 
     if (line_index >= 0 && column_index >= 0) {
-        Vector2s caret_offset;
-        caret_offset.x = buffer_region.min.x + (column_index * text_font->glyph_cell_size.x);
-        caret_offset.y = buffer_region.max.y - text_font->glyph_cell_size.y - (line_index * text_font->line_height);
+        Vector2s cursor_offset;
+        cursor_offset.x = buffer_region.min.x + (column_index * text_font->glyph_cell_size.x);
+        cursor_offset.y = buffer_region.max.y - text_font->glyph_cell_size.y - (line_index * text_font->line_height);
 
-        Vector2u caret_size;
-        caret_size.x = text_font->glyph_cell_size.x * CARET_SIZE_PERCENTAGE_X;
-        caret_size.y = text_font->glyph_cell_size.y * CARET_SIZE_PERCENTAGE_Y;
+        Vector2u cursor_size;
+        cursor_size.x = text_font->glyph_cell_size.x * CURSOR_SIZE_PERCENTAGE_X;
+        cursor_size.y = text_font->glyph_cell_size.y * CURSOR_SIZE_PERCENTAGE_Y;
 
-        // Center the caret horizontally.
-        caret_offset.y += (text_font->glyph_cell_size.y - (s32)caret_size.y) / 2;
+        // Center the cursor horizontally.
+        cursor_offset.y += (text_font->glyph_cell_size.y - (s32)cursor_size.y) / 2;
 
-        Rect2D caret_region = rect_offset_size(caret_offset, caret_size);
-        caret_region = rect_intersect(caret_region, buffer_region);
-        if (!is_degenerated(caret_region))
-            render_quad_opaque_unoptimized(caret_region, CARET_COLOR);
+        Rect2D cursor_region = rect_offset_size(cursor_offset, cursor_size);
+        cursor_region = rect_intersect(cursor_region, buffer_region);
+        if (!is_degenerated(cursor_region))
+            render_quad_opaque_unoptimized(cursor_region, CURSOR_COLOR);
     }
 }
 
@@ -352,7 +335,7 @@ render_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u3
     render_quad_opaque_unoptimized(titlebar_region, TITLEBAR_BACKGROUND_COLOR);
     Font* titlebar_font = font_from_id(FontID_UI);
 
-    // Offsets of the caret position start at 0, but the editor displays them starting from 1.
+    // Offsets of the cursor position start at 0, but the editor displays them starting from 1.
     String line       = string_from_number((u64)line_offset + 1);
     String column     = string_from_number((u64)column_offset + 1);
     String max_line   = string_from_number((u64)max_line_offset + 1);
@@ -530,9 +513,10 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     }
 
     if (!is_degenerated(buffer_region)) {
-        render_editor_buffer(buffer_region, &panel->buffer, &panel->caret,
+        render_editor_buffer(buffer_region, &panel->buffer,
+                             panel->cursor.state.byte_offset, panel->cursor.state.trail_byte_offset,
                              panel->first_line_offset, panel->first_column_offset);
-        render_editor_caret(buffer_region, panel);
+        render_editor_cursor(buffer_region, panel);
     }
 
     if (!is_degenerated(scrollbar_region)) {
@@ -571,7 +555,8 @@ render_editor_panel(Rect2D panel_region, EditorPanel* panel)
     }
 
     if (!is_degenerated(titlebar_region)) {
-        render_editor_titlebar(titlebar_region, panel->title, panel->caret.line_offset, panel->caret.column_offset,
+        BufferPosition cursor = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
+        render_editor_titlebar(titlebar_region, panel->title, cursor.line_offset, cursor.column_offset,
                                max_line_offset, max_column_offset);
     }
 }

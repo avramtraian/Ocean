@@ -16,11 +16,8 @@ struct TransactionStep {
 };
 
 struct CursorState {
-    u32 line_offset;
-    u32 column_offset;
-    bool is_selecting;
-    u32 trail_line_offset;
-    u32 trail_column_offset;
+    usize byte_offset;
+    usize trail_byte_offset;
 };
 
 //
@@ -71,13 +68,9 @@ struct TransactionBuilder {
     CursorState* final_cursor_states;
 };
 
-struct EditorCaret {
+struct EditorCursor {
+    CursorState state;
     u32 desired_column_offset;
-    u32 line_offset;
-    u32 column_offset;
-    bool has_selection;
-    u32 trail_line_offset;
-    u32 trail_column_offset;
 };
 
 struct EditorBuffer {
@@ -96,7 +89,7 @@ enum ScrollbarState : u8 {
 
 struct EditorPanel {
     EditorBuffer buffer;
-    EditorCaret caret;
+    EditorCursor cursor;
     String title;
 
     // @Cleanup: Transactions histories should be stored per editor buffer and not per
@@ -189,22 +182,57 @@ struct FrameInput {
     f32 current_time;
 };
 
-internal usize
-get_byte_offset_from_position(EditorBuffer* buffer, u32 line_offset, u32 column_offset)
-{
-    usize current_byte_offset = 0;
-    u32 current_line_offset = 0;
-    u32 current_column_offset = 0;
+struct BufferPosition {
+    u32 line_offset;
+    u32 column_offset;
+};
 
-    while (current_byte_offset < buffer->size && current_line_offset < line_offset) {
-        if (buffer->data[current_byte_offset] == '\n')
-            ++current_line_offset;
-        ++current_byte_offset;
+internal BufferPosition
+get_position_from_byte_offset(EditorBuffer* buffer, usize byte_offset)
+{
+    BufferPosition result = {};
+
+    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data, buffer->size);
+    while (is_valid(buffer_iterator) && buffer_iterator.offset < byte_offset) {
+        if (buffer_iterator.codepoint == '\n') {
+            // @Cleanup!
+            Utf8DecodeResult peek = peek_next(buffer_iterator);
+            if (peek.is_valid && peek.codepoint == '\r')
+                advance(&buffer_iterator);
+
+            result.line_offset++;
+            result.column_offset = 0;
+        } else {
+            result.column_offset++;
+        }
+
+        advance(&buffer_iterator);
     }
 
-    while (current_byte_offset < buffer->size && current_column_offset < column_offset) {
-        ++current_column_offset; // @Unicode: Properly support multi-byte encoded codepoints!
-        ++current_byte_offset;
+    return result;
+}
+
+internal usize
+get_line_byte_offset(EditorBuffer* buffer, u32 line_offset)
+{
+    u32 current_line_offset = 0;
+    usize current_byte_offset = 0;
+
+    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data, buffer->size);
+    while (is_valid(buffer_iterator) && current_line_offset < line_offset) {
+        u32 codepoint = buffer_iterator.codepoint;
+        current_byte_offset += buffer_iterator.byte_width;
+        advance(&buffer_iterator);
+
+        if (codepoint == '\n') {
+            // @Cleanup!
+            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r') {
+                advance(&buffer_iterator);
+                current_byte_offset += buffer_iterator.byte_width;
+            }
+
+            ++current_line_offset;
+        }
     }
 
     return current_byte_offset;
