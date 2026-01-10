@@ -38,12 +38,6 @@ struct Transaction {
     usize allocation_size;
     u32 step_count;
     u32 cursor_count;
-
-    // @Cleanup: These addresses can be calculated from scratch, so there is no point
-    // in storing them here!
-    TransactionStep* steps;
-    CursorState*     initial_cursor_states;
-    CursorState*     final_cursor_states;
 };
 
 struct TransactionHistory {

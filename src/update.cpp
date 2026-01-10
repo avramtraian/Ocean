@@ -106,23 +106,11 @@ reset_transaction_history(TransactionHistory* history)
     history->last_committed_transaction = NULL;
 }
 
-internal Transaction*
-serialize_transaction(TransactionHistory* history, TransactionBuilder* builder)
+internal void
+evict_last_transactions(TransactionHistory* history)
 {
-    usize allocation_size = find_transaction_size(builder);
-
-    if (allocation_size > history->buffer.size) {
-        // NOTE(Traian): There is no possible way we can serialize this transaction to the history. All we can do
-        // is clear the existing transaction history, leaving the user without the possibility of performing any
-        // unde actions. Since this erases the history, maybe we should ask them before? (9th January 2026)
-        reset_transaction_history(history);
-        return NULL;
-    }
-
     // Discard the transactions between the last committed one and the last one (if any).
     // Note that when 'last_committed_transaction' is null all history will be removed.
-    // NOTE(Traian): This should happend before allocating space for the new transaction, since
-    // it pops from the newest side of the ring buffer... duh! (10th January 2026)
     while (history->last_transaction != history->last_committed_transaction) {
         Transaction* prev = history->last_transaction->prev;
         if (prev)
@@ -130,10 +118,11 @@ serialize_transaction(TransactionHistory* history, TransactionBuilder* builder)
         os_pop_newest_from_ring_buffer(&history->buffer, history->last_transaction->allocation_size);
         history->last_transaction = prev;
     }
+}
 
-    // By the time we reach this line of code, the 'last_committed_transaction' is either NULL
-    // or equal to 'last_transaction'.
-
+internal void
+evict_first_transactions_until(TransactionHistory* history, usize allocation_size)
+{
     if (history->buffer.used + allocation_size > history->buffer.size) { // NOTE(Traian): This is correct only when no alignment padding is introduced...
         usize available = history->buffer.size - history->buffer.used; // NOTE(Traian): Same alignment contraint here...
         usize missing = allocation_size - available;
@@ -154,57 +143,88 @@ serialize_transaction(TransactionHistory* history, TransactionBuilder* builder)
             history->last_committed_transaction = NULL;
         }
     }
+}
+
+struct TransactionPointers {
+    Transaction*     transaction;
+    TransactionStep* steps;
+    CursorState*     initial_cursor_states;
+    CursorState*     final_cursor_states;
+    u8*              steps_data;
+};
+
+internal TransactionPointers
+finalize_transaction_pointers(u8* base_address, u32 step_count, u32 cursor_count)
+{
+    TransactionPointers result = {};
+    uintptr current_address = (uintptr)base_address;
+
+    result.transaction = (Transaction*)current_address;
+    current_address += sizeof(Transaction);
+
+    current_address = align_to_pow2(current_address, alignof(TransactionStep));
+    result.steps = (TransactionStep*)current_address;
+    current_address += step_count * sizeof(TransactionStep);
+
+    current_address = align_to_pow2(current_address, alignof(CursorState));
+    result.initial_cursor_states = (CursorState*)current_address;
+    result.final_cursor_states = result.initial_cursor_states + cursor_count;
+    current_address += 2 * cursor_count * sizeof(CursorState);
+
+    result.steps_data = (u8*)current_address; // No alignment is required.
+
+    return result;
+}
+
+internal Transaction*
+serialize_transaction(TransactionHistory* history, TransactionBuilder* builder)
+{
+    usize allocation_size = find_transaction_size(builder);
+
+    if (allocation_size > history->buffer.size) {
+        // NOTE(Traian): There is no possible way we can serialize this transaction to the history. All we can do
+        // is clear the existing transaction history, leaving the user without the possibility of performing any
+        // unde actions. Since this erases the history, maybe we should ask them before? (9th January 2026)
+        reset_transaction_history(history);
+        return NULL;
+    }
+
+    // NOTE(Traian): This should happend before allocating space for the new transaction, since
+    // it pops from the newest side of the ring buffer... duh! (10th January 2026)
+    evict_last_transactions(history);
+    evict_first_transactions_until(history, allocation_size);
 
     u8* transaction_address = (u8*)os_allocate_from_ring_buffer(&history->buffer, allocation_size, alignof(void*));
     ASSERT(transaction_address != NULL);
-    uintptr current_address = (uintptr)transaction_address;
 
-    // Finalize the transaction address.
-    Transaction* transaction = (Transaction*)current_address;
-    current_address += sizeof(Transaction);
-
-    // Finalize the steps address.
-    current_address = align_to_pow2(current_address, alignof(TransactionStep));
-    TransactionStep* steps = (TransactionStep*)current_address;
-    current_address += builder->step_count * sizeof(TransactionStep);
-
-    // Finalize the cursor initial and final states addresses.
-    current_address = align_to_pow2(current_address, alignof(CursorState));
-    CursorState* initial_cursor_states = (CursorState*)current_address;
-    CursorState* final_cursor_states = initial_cursor_states + builder->cursor_count;
-    current_address += 2 * builder->cursor_count * sizeof(CursorState);
-
-    // Finalize the steps data buffer address.
-    u8* steps_data = (u8*)current_address; // No alignment is required.
+    TransactionPointers pointers = finalize_transaction_pointers(transaction_address,
+                                                                 builder->step_count, builder->cursor_count);
+    Transaction* transaction = pointers.transaction;
 
     transaction->allocation_size = allocation_size;
     transaction->step_count = builder->step_count;
     transaction->cursor_count = builder->cursor_count;
-
-    transaction->steps = steps; // @Cleanup!
-    transaction->initial_cursor_states = initial_cursor_states; // @Cleanup!
-    transaction->final_cursor_states = final_cursor_states; // @Cleanup!
 
     usize step_index = 0;
     usize step_data_offset = 0;
 
     TransactionStepEntry* step_entry = builder->first_step;
     while (step_entry) {
-        steps[step_index].type = step_entry->step.type;
-        steps[step_index].operation_size = step_entry->step.operation_size;
-        steps[step_index].operation_offset = step_entry->step.operation_offset;
+        pointers.steps[step_index].type = step_entry->step.type;
+        pointers.steps[step_index].operation_size = step_entry->step.operation_size;
+        pointers.steps[step_index].operation_offset = step_entry->step.operation_offset;
 
         // Copy the operation data.
-        copy_memory(steps_data + step_data_offset, step_entry->step.data, step_entry->step.operation_size);
-        steps[step_index].data = steps_data + step_data_offset;
+        copy_memory(pointers.steps_data + step_data_offset, step_entry->step.data, step_entry->step.operation_size);
+        pointers.steps[step_index].data = pointers.steps_data + step_data_offset;
         step_data_offset += step_entry->step.operation_size;
 
         ++step_index;
         step_entry = step_entry->next;
     }
 
-    copy_memory(initial_cursor_states, builder->initial_cursor_states, builder->cursor_count * sizeof(CursorState));
-    copy_memory(final_cursor_states,   builder->final_cursor_states,   builder->cursor_count * sizeof(CursorState));
+    copy_memory(pointers.initial_cursor_states, builder->initial_cursor_states, builder->cursor_count * sizeof(CursorState));
+    copy_memory(pointers.final_cursor_states,   builder->final_cursor_states,   builder->cursor_count * sizeof(CursorState));
 
     if (history->first_transaction == NULL) {
         history->first_transaction = transaction;
@@ -243,13 +263,52 @@ append_insertion_step(TransactionBuilder* builder, MemoryArena* arena, usize off
 }
 
 internal void
+append_deletion_step(TransactionBuilder* builder, MemoryArena* arena, usize removal_offset,
+                     void* removed_data, usize removed_size)
+{
+    TransactionStepEntry* step = PUSH_STRUCT(arena, TransactionStepEntry);
+    step->step.type = TransactionStepType_Deletion;
+    step->step.operation_offset = removal_offset;
+    step->step.operation_size = removed_size;
+    step->step.data = PUSH_ARRAY(arena, u8, removed_size);
+    copy_memory(step->step.data, removed_data, removed_size);
+
+    // @Copynpaste from 'append_insertion_step'. Should probably create a separate function that appends
+    // a generic step to a transaction builder.
+    if (builder->last_step)
+        builder->last_step->next = step;
+
+    if (!builder->first_step)
+        builder->first_step = step;
+
+    builder->last_step = step;
+    builder->step_count++;
+}
+
+internal void
 commit_transaction(Transaction* transaction, EditorPanel* target_panel)
 {
+    EditorBuffer* buffer = &target_panel->buffer;
+    TransactionPointers pointers = finalize_transaction_pointers((u8*)transaction, transaction->step_count,
+                                                                 transaction->cursor_count);
+
     for (usize step_index = 0; step_index < transaction->step_count; ++step_index) {
-        TransactionStep* step = transaction->steps + step_index;
+        TransactionStep* step = pointers.steps + step_index;
         if (step->type == TransactionStepType_Insertion) {
-            insert_into_buffer(&target_panel->buffer, step->operation_offset,
-                               step->data, step->operation_size);
+            // Make sure the offsets are correct (or at least we don't crash).
+            ASSERT(step->operation_offset <= buffer->size);
+            insert_into_buffer(buffer, step->operation_offset, step->data, step->operation_size);
+        } else if (step->type == TransactionStepType_Deletion) {
+            // Make sure the offsets are correct (or at least we don't crash).
+            ASSERT(step->operation_offset + step->operation_size <= buffer->size);
+
+            // Make sure that the data we are set to delete from the buffer corresponds with what
+            // the transactions expects to be deleted.
+            u8* current_data = buffer->data + step->operation_offset;
+            u8* expected_data = step->data;
+            ASSERT(compare_memory(current_data, expected_data, step->operation_size) == 0);
+            
+            remove_from_buffer(buffer, step->operation_offset, step->operation_size);
         }
     }
 }
@@ -257,16 +316,34 @@ commit_transaction(Transaction* transaction, EditorPanel* target_panel)
 internal void
 rollback_transaction(Transaction* transaction, EditorPanel* target_panel)
 {
+    EditorBuffer* buffer = &target_panel->buffer;
+    TransactionPointers pointers = finalize_transaction_pointers((u8*)transaction, transaction->step_count,
+                                                                 transaction->cursor_count);
+
     for (s64 step_index = (s64)transaction->step_count - 1; step_index >= 0; --step_index) {
-        TransactionStep* step = transaction->steps + step_index;
+        TransactionStep* step = pointers.steps + step_index;
         if (step->type == TransactionStepType_Insertion) {
-            remove_from_buffer(&target_panel->buffer, step->operation_offset, step->operation_size);
+            // Make sure the offsets are correct (or at least we don't crash).
+            ASSERT(step->operation_offset + step->operation_size <= buffer->size);
+
+            // Make sure that the data the transaction expects to be present at that offset corresponds
+            // to the data actually written in the buffer.
+            u8* current_data = buffer->data + step->operation_offset;
+            u8* expected_data = step->data;
+            ASSERT(compare_memory(current_data, expected_data, step->operation_size) == 0);
+
+            remove_from_buffer(buffer, step->operation_offset, step->operation_size);
+        } else if (step->type == TransactionStepType_Deletion) {
+            // Make sure the offsets are correct (or at least we don't crash).
+            ASSERT(step->operation_offset <= buffer->size);
+
+            insert_into_buffer(buffer, step->operation_offset, step->data, step->operation_size);
         }
     }
 }
 
 internal void
-undo_history(TransactionHistory* history, EditorPanel* target_panel)
+undo_history_single(TransactionHistory* history, EditorPanel* target_panel)
 {
     if (history->last_committed_transaction) {
         rollback_transaction(history->last_committed_transaction, target_panel);
@@ -275,7 +352,7 @@ undo_history(TransactionHistory* history, EditorPanel* target_panel)
 }
 
 internal void
-redo_history(TransactionHistory* history, EditorPanel* target_panel)
+redo_history_single(TransactionHistory* history, EditorPanel* target_panel)
 {
     if (history->last_committed_transaction) {
         Transaction* first_uncommitted_transaction = history->last_committed_transaction->next;
@@ -373,8 +450,8 @@ update_editor(EditorState* state, FrameInput* frame_input)
     */
 
     if (frame_input->keyboard.keys[KeyCode_Z].received_key_down_event)
-        undo_history(history, &state->first_panel);
+        undo_history_single(history, &state->first_panel);
 
     if (frame_input->keyboard.keys[KeyCode_Y].received_key_down_event)
-        redo_history(history, &state->first_panel);
+        redo_history_single(history, &state->first_panel);
 }

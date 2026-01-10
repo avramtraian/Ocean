@@ -19,6 +19,10 @@ zero_memory(void* destination, usize size)
     }
 }
 
+#define ZERO_STRUCT(x)          zero_memory(&(x), sizeof(x))
+#define ZERO_STRUCT_POINTER(x)  zero_memory(x, sizeof(*(x)))
+#define ZERO_STRUCT_ARRAY(x, c) zero_memory(x, (c) * sizeof((x)[0]))
+
 function void
 copy_memory(void* destination, void* source, usize size)
 {
@@ -33,9 +37,29 @@ copy_memory(void* destination, void* source, usize size)
     }
 }
 
-#define ZERO_STRUCT(x)          zero_memory(&(x), sizeof(x))
-#define ZERO_STRUCT_POINTER(x)  zero_memory(x, sizeof(*(x)))
-#define ZERO_STRUCT_ARRAY(x, c) zero_memory(x, (c) * sizeof((x)[0]))
+internal int
+compare_memory(void* lhs, void* rhs, usize size)
+{
+    u8* lhs_it = (u8*)lhs;
+    u8* rhs_it = (u8*)rhs;
+    u8* lhs_it_end = lhs_it + size;
+
+    while (lhs_it != lhs_it_end) {
+        if (*lhs_it != *rhs_it) {
+            if (*lhs_it < *rhs_it)
+                return -1;
+            return 1;
+        }
+        ++lhs_it;
+        ++rhs_it;
+    }
+
+    return 0;
+}
+
+#define MEMCMP_STRUCT(lhs, rhs)          (compare_memory(&(lhs), &(rhs), sizeof(lhs)))
+#define MEMCMP_STRUCT_POINTER(lhs, rhs)  (compare_memory(lhs, rhs, sizeof(*(lhs))))
+#define MEMCMP_STRUCT_ARRAY(lhs, rhs, c) (compare_memory(lhs, rhs, (c) * sizeof((lhs)[0])))
 
 struct MemoryArena {
     u8* data;
@@ -44,7 +68,8 @@ struct MemoryArena {
     usize reserved;
 };
 
-function MemoryArena create_arena(usize committed, usize reserved)
+function MemoryArena
+create_arena(usize committed, usize reserved)
 {
     ASSERT(committed <= reserved);
     committed = os_get_memory_page_aligned(committed);
