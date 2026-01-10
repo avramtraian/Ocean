@@ -138,8 +138,8 @@ render_glyph_bitmap_unoptimized(SubpixelFontGlyph* glyph, Vector2s offset, Rect2
 struct TextCursor {
     Font* font;
     Rect2D visible_region;
-    Vector2u cell_size;
-    Vector2s cursor;
+    Vector2s start_offset;
+    Vector2s current_cell_offset;
 };
 
 internal TextCursor
@@ -148,10 +148,9 @@ create_text_cursor(Font* font, Rect2D visible_region, Vector2s start_offset)
     TextCursor cursor = {};
     cursor.font = font;
     cursor.visible_region = visible_region;
-    cursor.cell_size.x = font->advance_width;
-    cursor.cell_size.y = font->ascent + (-font->descent);
-    cursor.cursor.x = visible_region.min.x                      + start_offset.x;
-    cursor.cursor.y = visible_region.max.y - cursor.cell_size.y + start_offset.y;
+    cursor.start_offset = start_offset;
+    cursor.current_cell_offset.x = visible_region.min.x                           + start_offset.x;
+    cursor.current_cell_offset.y = visible_region.max.y - font->glyph_cell_size.y + start_offset.y;
     return cursor;
 }
 
@@ -167,15 +166,15 @@ get_overflow(TextCursor* cursor)
     overflow.vertical   = false;
     overflow.horizontal = false;
 
-    if (cursor->cursor.x >= cursor->visible_region.max.x ||
-        cursor->cursor.x + cursor->cell_size.x <= cursor->visible_region.min.x)
+    if (cursor->current_cell_offset.x >= cursor->visible_region.max.x ||
+        cursor->current_cell_offset.x + cursor->font->glyph_cell_size.x <= cursor->visible_region.min.x)
     {
         // The current text cell is entirely out of the visible region along the Y-axis.
         overflow.horizontal = true;
     }
 
-    if (cursor->cursor.y >= cursor->visible_region.max.y ||
-        cursor->cursor.y + cursor->cell_size.y <= cursor->visible_region.min.y)
+    if (cursor->current_cell_offset.y >= cursor->visible_region.max.y ||
+        cursor->current_cell_offset.y + cursor->font->glyph_cell_size.y <= cursor->visible_region.min.y)
     {
         // The current text cell is entirely out of the visible region along the Y-axis.
         overflow.vertical = true;
@@ -188,23 +187,22 @@ internal Vector2s
 get_glyph_offset(TextCursor* cursor, Vector2s glyph_render_offset)
 {
     Vector2s glyph_offset;
-    glyph_offset.x = cursor->cursor.x + glyph_render_offset.x;
-    glyph_offset.y = cursor->cursor.y + glyph_render_offset.y + (-cursor->font->descent);
+    glyph_offset.x = cursor->current_cell_offset.x + glyph_render_offset.x;
+    glyph_offset.y = cursor->current_cell_offset.y + glyph_render_offset.y + (-cursor->font->descent);
     return glyph_offset;
 }
 
 internal void
-advance(TextCursor* cursor)
+advance(TextCursor* cursor, u32 cell_count)
 {
-    cursor->cursor.x += cursor->cell_size.x;
+    cursor->current_cell_offset.x += cell_count * cursor->font->glyph_cell_size.x;
 }
 
 internal void
 next_line(TextCursor* cursor)
 {
-    cursor->cursor.x = cursor->visible_region.min.x;
-    constant f32 LINE_SPACE_MULTIPLIER = 1.0F;
-    cursor->cursor.y -= cursor->font->line_height * LINE_SPACE_MULTIPLIER;
+    cursor->current_cell_offset.x = cursor->visible_region.min.x + cursor->start_offset.x;
+    cursor->current_cell_offset.y -= cursor->font->line_height;
 }
 
 //
@@ -288,9 +286,9 @@ render_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer, EditorCaret* ca
                 Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
                 render_glyph_bitmap_unoptimized(glyph, glyph_offset, buffer_region, FOREGROUND_COLOR);
             }
-            advance(&cursor);
+            advance(&cursor, 1);
         } else if (codepoint == ' ') {
-            advance(&cursor);
+            advance(&cursor, 1);
         } else if (codepoint == '\n') {
             next_line(&cursor);
 
@@ -482,7 +480,7 @@ render_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u3
                 Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
                 render_glyph_bitmap_unoptimized(glyph, glyph_offset, text_region, TITLEBAR_FOREGROUND_COLOR);
             }
-            advance(&cursor);
+            advance(&cursor, 1);
         }
     }
 }
