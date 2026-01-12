@@ -277,6 +277,14 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
             }
         }
 
+        // @Cleanup: We should handle the CRLF/LF line ending dispute in a different way...
+        if (codepoint == '\r') {
+            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\n') {
+                codepoint = '\n';
+                advance(&buffer_iterator);
+            }
+        }
+
         if ('!' <= codepoint && codepoint <= '~') {
             if (!cursor_overflow.horizontal) {
                 // auto* glyph = &cursor.font->ascii_subpixel_glyphs_freetype[codepoint - '!'];
@@ -288,10 +296,6 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
         } else if (codepoint == ' ') {
             advance(&cursor, 1);
         } else if (codepoint == '\n') {
-            // @Cleanup: We should handle the CRLF/LF line ending dispute in a different way...
-            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r')
-                advance(&buffer_iterator);
-            
             next_line(&cursor);
         } else {
             // @Incomplete: Support more non-ASCII glyphs or at least display the raw hex values.
@@ -524,11 +528,11 @@ draw_editor_panel(EditorPanelLayout layout, EditorPanel* panel)
          advance(&buffer_iterator))
     {
         u32 codepoint = buffer_iterator.codepoint;
-        if (codepoint == '\n') {
+        if (codepoint == '\r') {
             // @Cleanup, @Robustness: We should really handle the LF vs CRLF line encoding more seriously
             // and consistently. There are multiple places in where we do the exact same steps as below...
             auto peek_result = peek_next(buffer_iterator);
-            if (peek_result.is_valid && peek_result.codepoint == '\r')
+            if (peek_result.is_valid && peek_result.codepoint == '\n')
                 advance(&buffer_iterator);
 
             ++max_line_offset;
