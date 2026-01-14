@@ -272,6 +272,12 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
             Rect2D cell_region = rect_offset_size(cursor.current_cell_offset, to_v2u(font->glyph_cell_size));
             cell_region = rect_intersect(cell_region, buffer_region);
 
+            // For fonts where 'font->line_height' is not equal to 'font->glyph_cell_size.y' (such as Consolas), the
+            // selection highlight would have "gaps" between lines.
+            u32 line_height = font->line_height;
+            cell_region.min.y -= (line_height - font->glyph_cell_size.y + 1) / 2;
+            cell_region.max.y += (line_height - font->glyph_cell_size.y + 1) / 2;
+
             if (!is_degenerated(cell_region)) {
                 render_quad_opaque_unoptimized(cell_region, BACKGROUND_SELECTED_COLOR);
             }
