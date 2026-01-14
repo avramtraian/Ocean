@@ -594,18 +594,18 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     HDC device_context = GetDC(g_window_handle);
 
     GlobalFontsDescription fonts_description = {};
-    fonts_description.text_name     = "../DroidSansMono.ttf";
-    fonts_description.ui_name       = "../DroidSansMono.ttf";
-    fonts_description.ui_small_name = "../DroidSansMono.ttf";
-    fonts_description.ui_big_name   = "../DroidSansMono.ttf";
-    // fonts_description.text_name     = "C:/Windows/Fonts/consola.ttf";
-    // fonts_description.ui_name       = "C:/Windows/Fonts/consola.ttf";
-    // fonts_description.ui_small_name = "C:/Windows/Fonts/consola.ttf";
-    // fonts_description.ui_big_name   = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.text_pixel_height     = 20;
-    fonts_description.ui_pixel_height       = 20;
+    // fonts_description.text_name     = "../DroidSansMono.ttf";
+    // fonts_description.ui_name       = "../DroidSansMono.ttf";
+    // fonts_description.ui_small_name = "../DroidSansMono.ttf";
+    // fonts_description.ui_big_name   = "../DroidSansMono.ttf";
+    fonts_description.text_name     = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.ui_name       = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.ui_small_name = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.ui_big_name   = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.text_pixel_height     = 23;
+    fonts_description.ui_pixel_height       = 25;
     fonts_description.ui_small_pixel_height = 15;
-    fonts_description.ui_big_pixel_height   = 25;
+    fonts_description.ui_big_pixel_height   = 30;
     
     MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
     MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));
