@@ -163,6 +163,35 @@ utf8_decode(void* data, usize size)
     return {};
 }
 
+internal Utf8DecodeResult
+utf8_decode_reversed(void* data, usize size)
+{
+    UTF8_VALIDATE_ENOUGH_BYTES(size, 1);
+    u8* bytes = (u8*)data + size;
+
+    if (UTF8_CHECK_FOR_ONE_BYTE_SEQUENCE(bytes[-1]))
+        return utf8_decode_one_byte(bytes[-1]);
+
+    UTF8_VALIDATE_CONTINUATION_BYTE(bytes[-1]);
+    UTF8_VALIDATE_ENOUGH_BYTES(size, 2);
+
+    if (UTF8_CHECK_FOR_TWO_BYTES_SEQUENCE(bytes[-2]))
+        return utf8_decode_two_bytes(bytes[-2], bytes[-1]);
+
+    UTF8_VALIDATE_CONTINUATION_BYTE(bytes[-2]);
+    UTF8_VALIDATE_ENOUGH_BYTES(size, 3);
+
+    if (UTF8_CHECK_FOR_THREE_BYTES_SEQUENCE(bytes[-3]))
+        return utf8_decode_three_bytes(bytes[-3], bytes[-2], bytes[-1]);
+
+    UTF8_VALIDATE_CONTINUATION_BYTE(bytes[-3]);
+    UTF8_VALIDATE_ENOUGH_BYTES(size, 4);
+
+    if (UTF8_CHECK_FOR_FOUR_BYTES_SEQUENCE(bytes[-4]))
+        return utf8_decode_four_bytes(bytes[-4], bytes[-3], bytes[-2], bytes[-1]);
+
+    return {};
+}
 internal Utf8EncodeResult
 utf8_encode(u32 codepoint)
 {
