@@ -212,12 +212,12 @@ next_line(TextCursor* cursor)
 constant f32 CURSOR_SIZE_PERCENTAGE_X = 0.2F;
 constant f32 CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
 
-const LinearColor FOREGROUND_COLOR           = linear_color(205, 205, 165);
-const LinearColor BACKGROUND_COLOR           = linear_color(35, 35, 35);
-const LinearColor BACKGROUND_SELECTED_COLOR  = linear_color(15, 30, 200);
+const LinearColor FOREGROUND_COLOR           = linear_color(200, 200, 165);
+const LinearColor BACKGROUND_COLOR           = linear_color(4, 36, 40);
+const LinearColor BACKGROUND_SELECTED_COLOR  = linear_color(15, 30, 220);
 const LinearColor TITLEBAR_BACKGROUND_COLOR  = linear_color(189, 180, 98);
 const LinearColor TITLEBAR_FOREGROUND_COLOR  = linear_color(25, 25, 25);
-const LinearColor SPLITTER_COLOR             = linear_color(30, 30, 30);
+const LinearColor SPLITTER_COLOR             = linear_color(189, 180, 98);
 const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
 const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
@@ -232,21 +232,20 @@ const LinearColor CURSOR_COLOR               = linear_color(220, 220, 220);
 // it's fine... (8th January 2026)
 //
 
+struct CursorSelectionRange {
+    usize start_offset;
+    usize end_offset;
+};
+
 internal void
 draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
-                     usize selection_start_offset, usize selection_end_offset,
+                     CursorSelectionRange* selection_ranges, u32 selection_range_count,
                      u32 line_offset, u32 column_offset)
 {
     if (is_degenerated(buffer_region))
         return;
 
     render_quad_opaque_unoptimized(buffer_region, BACKGROUND_COLOR);
-
-    if (selection_start_offset > selection_end_offset) {
-        usize temp = selection_start_offset;
-        selection_start_offset = selection_end_offset;
-        selection_end_offset = temp;
-    }
 
     Font* font = font_from_id(FontID_Text);
     Vector2s cursor_start_offset = v2s(-column_offset * font->glyph_cell_size.x, 0);
@@ -262,24 +261,25 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
         TextCursorOverflow cursor_overflow = get_overflow(&cursor);
         if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
 
-        if ((selection_start_offset <= buffer_byte_offset) &&
-            (buffer_byte_offset < selection_end_offset))
-        {
-            // We are rendering character that is inside the cursor selection.
-            Rect2D cell_region = rect_offset_size(cursor.current_cell_offset, to_v2u(font->glyph_cell_size));
-            cell_region = rect_intersect(cell_region, buffer_region);
-
-            // For fonts where 'font->line_height' is not equal to 'font->glyph_cell_size.y' (such as Consolas), the
-            // selection highlight would have "gaps" between lines.
-            u32 line_height = font->line_height;
-            cell_region.min.y -= (line_height - font->glyph_cell_size.y + 1) / 2;
-            cell_region.max.y += (line_height - font->glyph_cell_size.y + 1) / 2;
-
-            if (!is_degenerated(cell_region)) {
-                render_quad_opaque_unoptimized(cell_region, BACKGROUND_SELECTED_COLOR);
-            }
         u32 codepoint = codepoint_is_valid(buffer_iterator) ? buffer_iterator.codepoint : buffer_iterator.byte_value;
         usize buffer_byte_offset = line_byte_offset + buffer_iterator.offset;
+
+        for (u32 index = 0; index < selection_range_count; ++index) {
+            CursorSelectionRange range = selection_ranges[index];
+            if (range.start_offset <= buffer_byte_offset && buffer_byte_offset < range.end_offset) {
+                // Determine the current cell region.
+                Rect2D cell_region = rect_offset_size(cursor.current_cell_offset, to_v2u(font->glyph_cell_size));
+                cell_region = rect_intersect(cell_region, buffer_region);
+
+                // For fonts where 'font->line_height' is not equal to 'font->glyph_cell_size.y' (such as Consolas), the
+                // selection highlight would have "gaps" between lines.
+                u32 line_height = font->line_height;
+                cell_region.min.y -= (line_height - font->glyph_cell_size.y + 1) / 2;
+                cell_region.max.y += (line_height - font->glyph_cell_size.y + 1) / 2;
+
+                if (!is_degenerated(cell_region))
+                    render_quad_opaque_unoptimized(cell_region, BACKGROUND_SELECTED_COLOR);
+                }
         }
 
 
@@ -306,12 +306,18 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
             next_line(&cursor);
         } else {
             // @Incomplete: Support more non-ASCII glyphs or at least display the raw hex values.
+
+            auto* glyph = &font->ascii_grayscale_glyphs_stb['?' - '!'];
+            Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
+            render_glyph_bitmap_unoptimized(glyph, glyph_offset, buffer_region, FOREGROUND_COLOR);
+            advance(&cursor, 1);
         }
     }
 }
 
 internal void
-draw_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
+draw_editor_cursor(Rect2D buffer_region, EditorBuffer* buffer, EditorCursor* cursor, u32 first_line_offset,
+                   u32 first_column_offset)
 {
     if (is_degenerated(buffer_region))
         return;
@@ -319,9 +325,9 @@ draw_editor_cursor(Rect2D buffer_region, EditorPanel* panel)
     Font* text_font = font_from_id(FontID_Text);
 
     // Relative to the buffer top-left corner.
-    BufferPosition cursor_position = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
-    s32 line_index   = (s32)cursor_position.line_offset   - (s32)panel->first_line_offset;
-    s32 column_index = (s32)cursor_position.column_offset - (s32)panel->first_column_offset;
+    BufferPosition cursor_position = get_position_from_byte_offset(buffer, cursor->state.byte_offset);
+    s32 line_index   = (s32)cursor_position.line_offset   - (s32)first_line_offset;
+    s32 column_index = (s32)cursor_position.column_offset - (s32)first_column_offset;
 
     if (line_index >= 0 && column_index >= 0) {
         Vector2s cursor_offset;
@@ -511,11 +517,21 @@ draw_editor_scrollbar(Rect2D scrollbar_region, f32 offset, f32 height, Scrollbar
 internal void
 draw_editor_panel(EditorPanelLayout layout, EditorPanel* panel)
 {
+    auto* selection_ranges = PUSH_ARRAY(g_arenas.frame, CursorSelectionRange, panel->cursor_count);
+    for (u32 index = 0; index < panel->cursor_count; ++index) {
+        EditorCursor* cursor = panel->cursors + index;
+        selection_ranges[index].start_offset = min(cursor->state.byte_offset, cursor->state.trail_byte_offset);
+        selection_ranges[index].end_offset   = max(cursor->state.byte_offset, cursor->state.trail_byte_offset);
+    }
+
     draw_editor_buffer(layout.buffer_region, &panel->buffer,
-                       panel->cursor.state.byte_offset, panel->cursor.state.trail_byte_offset,
+                       selection_ranges, panel->cursor_count,
                        panel->first_line_offset, panel->first_column_offset);
     
-    draw_editor_cursor(layout.buffer_region, panel);
+    for (u32 index = 0; index < panel->cursor_count; ++index) {
+        draw_editor_cursor(layout.buffer_region, &panel->buffer, panel->cursors + index,
+                           panel->first_line_offset, panel->first_column_offset);
+    }
 
     draw_editor_scrollbar(layout.scrollbar_region, panel->scrollbar_offset_percentage,
                           panel->scrollbar_height_percentage, panel->scrollbar_state);
@@ -550,8 +566,9 @@ draw_editor_panel(EditorPanelLayout layout, EditorPanel* panel)
         }
     }
 
-    BufferPosition cursor = get_position_from_byte_offset(&panel->buffer, panel->cursor.state.byte_offset);
-    draw_editor_titlebar(layout.titlebar_region, panel->title, cursor.line_offset, cursor.column_offset,
+    ASSERT(panel->cursor_count > 0);
+    BufferPosition position = get_position_from_byte_offset(&panel->buffer, panel->cursors[0].state.byte_offset);
+    draw_editor_titlebar(layout.titlebar_region, panel->title, position.line_offset, position.column_offset,
                          max_line_offset, max_column_offset);
 }
 

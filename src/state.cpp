@@ -82,9 +82,10 @@ struct EditorLayout {
     Rect2D splitter_region;
 };
 
-constant usize TITLEBAR_SIZE  = 22;
+constant usize TITLEBAR_SIZE  = 30;
 constant usize SCROLLBAR_SIZE = 15;
 constant usize SPLITTER_SIZE  = 8;
+constant u32   TAB_SIZE       = 4; // @Cleanup: This should be user-defined.
 
 internal EditorPanelLayout
 compute_editor_panel_layout(Rect2D panel_region, bool has_scrollbar)
@@ -172,8 +173,11 @@ enum ScrollbarState : u8 {
 
 struct EditorPanel {
     EditorBuffer buffer;
-    EditorCursor cursor;
     String title;
+
+    EditorCursor* cursors;
+    usize cursor_count;
+    usize cursor_allocated_count;
 
     // @Cleanup: Transactions histories should be stored per editor buffer and not per
     // editor panel! We currently store it here because we only use it for testing purposes
@@ -190,8 +194,9 @@ struct EditorPanel {
 
 struct EditorState {
     bool is_splitscreen;
-    EditorPanel first_panel;
-    EditorPanel second_panel;
+    EditorPanel  first_panel;
+    EditorPanel  second_panel;
+    EditorPanel* active_panel;
 };
 
 struct KeyState {

@@ -406,3 +406,38 @@ utf8_get_codepoint_count(String string)
     usize result = utf8_get_codepoint_count(string.data, string.size);
     return result;
 }
+
+internal inline bool
+is_whitespace(u32 codepoint)
+{
+    bool result = (codepoint == ' ')  ||
+                  (codepoint == '\t') ||
+                  (codepoint == '\r') ||
+                  (codepoint == '\n');
+    return result;
+}
+
+internal inline bool
+is_alphabetical(u32 codepoint)
+{
+    // @Speed: This can be slightly optimized by looking at the bit layout of the ASCII ranges.
+    bool result = ('a' <= codepoint && codepoint <= 'z') || ('A' <= codepoint && codepoint <= 'Z');
+    return result;
+}
+
+internal inline bool
+is_numerical(u32 codepoint)
+{
+    bool result = ('0' <= codepoint && codepoint <= '9');
+    return result;
+}
+
+internal inline bool
+is_word(u32 codepoint)
+{
+    bool result = 
+        is_alphabetical(codepoint) ||
+        is_numerical(codepoint) ||
+        codepoint == '_';
+    return result;
+}

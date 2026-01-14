@@ -369,12 +369,35 @@ redo_history_single(TransactionHistory* history, EditorPanel* target_panel)
 internal void
 initialize_editor(EditorState* state)
 {
+    state->is_splitscreen = true;
+    state->active_panel = &state->first_panel;
+
+    //
+    // Initialize the first panel:
+    //
+
     state->first_panel.buffer = allocate_editor_buffer(MiB(1), GiB(1));
     // Load testing content for the first panel.
     OSReadFileResult read_file_result1 = os_read_entire_file("C:/Dev/editor3/src/render.cpp");
     if (read_file_result1.is_valid)
         insert_into_buffer(&state->first_panel.buffer, 0, read_file_result1.data, read_file_result1.size);
     state->first_panel.title = STRING_LIT("C:/Dev/editor3/src/render.cpp");
+
+    state->first_panel.scrollbar_state = ScrollbarState_Hidden;
+    state->first_panel.scrollbar_offset_percentage = 0.0F;
+    state->first_panel.scrollbar_height_percentage = 0.2F;
+    state->first_panel.first_line_offset = 0;
+    state->first_panel.first_column_offset = 0;
+    state->first_panel.history.buffer = os_allocate_ring_buffer(MiB(4));
+    state->first_panel.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, 16);
+    state->first_panel.cursor_allocated_count = 16;
+    state->first_panel.cursor_count = 2;
+    state->first_panel.cursors[1].state.byte_offset = 100;
+    state->first_panel.cursors[1].state.trail_byte_offset = 100;
+
+    //
+    // Initialize the second panel:
+    //
 
     state->second_panel.buffer = allocate_editor_buffer(MiB(1), GiB(1));
     // Load testing content for the second panel.
@@ -383,77 +406,19 @@ initialize_editor(EditorState* state)
         insert_into_buffer(&state->second_panel.buffer, 0, read_file_result2.data, read_file_result2.size);
     state->second_panel.title = STRING_LIT("C:/Dev/editor3/src/update.cpp");
 
-    state->is_splitscreen = true;
-
-    state->first_panel.scrollbar_state = ScrollbarState_Hidden;
-    state->first_panel.scrollbar_offset_percentage = 0.0F;
-    state->first_panel.scrollbar_height_percentage = 0.2F;
     state->second_panel.scrollbar_state = ScrollbarState_Visible;
     state->second_panel.scrollbar_offset_percentage = 0.2F;
     state->second_panel.scrollbar_height_percentage = 0.5F;
-    
-    state->first_panel.first_line_offset = 0;
-    state->first_panel.first_column_offset = 0;
-    state->first_panel.cursor.state.byte_offset       = 0;
-    state->first_panel.cursor.state.trail_byte_offset = 0;
-
     state->second_panel.first_line_offset = 10;
     state->second_panel.first_column_offset = 5;
-    state->second_panel.cursor.state.byte_offset       = 100;
-    state->second_panel.cursor.state.trail_byte_offset = 100;
-
-    state->first_panel.history.buffer = os_allocate_ring_buffer(MiB(4));
     state->second_panel.history.buffer = os_allocate_ring_buffer(MiB(4));
+    state->second_panel.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, 16);
+    state->second_panel.cursor_allocated_count = 16;
+    state->second_panel.cursor_count = 1;
 }
 
 internal void
 update_editor(EditorState* state, FrameInput* frame_input)
 {
-    if (frame_input->keyboard.keys[KeyCode_Right].received_key_down_event) {
-        if (state->first_panel.cursor.state.byte_offset < state->first_panel.buffer.size)
-            state->first_panel.cursor.state.byte_offset++;
-    }
-
-    if (frame_input->keyboard.keys[KeyCode_Left].received_key_down_event) {
-        if (state->first_panel.cursor.state.byte_offset > 0)
-            state->first_panel.cursor.state.byte_offset--;
-    }
-
-    TransactionHistory* history = &state->first_panel.history;
-
-    for (u16 key_code = KeyCode_A; key_code <= KeyCode_Z; ++key_code) {
-        if (key_code == KeyCode_Z || key_code == KeyCode_Y) continue;
-        char characters[] = "abcdefghijklmnopqrstuvwxyz";
-
-        if (frame_input->keyboard.keys[key_code].received_key_down_event) {
-            TransactionBuilder builder = {};
-            local_persistent usize s_offset = 0;
-            append_insertion_step(&builder, g_arenas.frame, s_offset++, &characters[key_code - KeyCode_A], 1);
-            Transaction* transaction = serialize_transaction(history, &builder);
-            commit_transaction(transaction, &state->first_panel);
-            history->last_committed_transaction = transaction;
-        }
-    }
-    
-    /*
-    ASSERT(history->first_transaction == NULL || history->first_transaction->prev == NULL);
-    ASSERT(history->last_transaction == NULL || history->last_transaction->next == NULL);
-
-    Transaction* transaction = history->first_transaction;
-    while (transaction) {
-        ASSERT(transaction->next == NULL || transaction->next->prev == transaction);
-        if (transaction == history->last_committed_transaction)
-            OutputDebugStringA(" [X] ");
-        else
-            OutputDebugStringA(" [ ] ");
-        transaction = transaction->next;
-    }
-    OutputDebugStringA("\n");
-    */
-
-    if (frame_input->keyboard.keys[KeyCode_Z].received_key_down_event)
-        undo_history_single(history, &state->first_panel);
-
-    if (frame_input->keyboard.keys[KeyCode_Y].received_key_down_event)
-        redo_history_single(history, &state->first_panel);
+    update_navigation_system(state, frame_input);
 }

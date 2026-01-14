@@ -143,6 +143,7 @@ internal OSWindowBitmap g_window_bitmap;
 #include "unicode.cpp"
 #include "font.cpp"
 #include "state.cpp"
+#include "navigation.cpp"
 #include "render.cpp"
 #include "update.cpp"
 
