@@ -500,7 +500,23 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
       case WM_SYSKEYDOWN: {
         int virtual_key = w_param;
         KeyCode key_code = win32_key_code_from_virtual_key(virtual_key);
-        g_frame_input.keyboard.keys[key_code].received_key_down_event = true;
+        g_frame_input.keyboard.keys[key_code].event_count++;
+        return 0;
+      }
+
+      case WM_CHAR: {
+        int codepoint = w_param;
+        if (codepoint < ' ') return 0; // Ignore non-printable ASCII codepoints.
+
+        if (g_frame_input.keyboard.char_event_codepoint_count <
+            g_frame_input.keyboard.max_char_event_codepoints)
+        {
+            u32 index = g_frame_input.keyboard.char_event_codepoint_count++;
+            g_frame_input.keyboard.char_event_codepoints[index] = codepoint;
+        } else {
+            // @Incomplete: Skipping key pressed events when typing is the last thing a text editor should
+            // do. However, the value of 'max_char_event_codepoints' is currently quite big...
+        }
         return 0;
       }
     }
@@ -518,8 +534,10 @@ win32_reset_frame_input()
         KeyState* key_state = &g_frame_input.keyboard.keys[key_code];
         key_state->was_pressed_this_frame = false;
         key_state->was_released_this_frame = false;
-        key_state->received_key_down_event = false;
+        key_state->event_count = 0;
     }
+
+    g_frame_input.keyboard.char_event_codepoint_count = 0;
 }
 
 internal void

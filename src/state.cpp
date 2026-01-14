@@ -198,7 +198,7 @@ struct KeyState {
     bool is_down;
     bool was_pressed_this_frame;
     bool was_released_this_frame;
-    bool received_key_down_event;
+    u32 event_count;
 };
 
 enum KeyCode : u16 {
@@ -240,7 +240,10 @@ enum KeyCode : u16 {
 struct KeyboardInput {
     constant usize key_count = KeyCode_MaxEnumCount;
     KeyState keys[key_count];
-    u32 char_event_codepoint;
+
+    constant usize max_char_event_codepoints = 256;
+    usize char_event_codepoint_count;
+    u32 char_event_codepoints[max_char_event_codepoints];
 };
 
 enum MouseButton : u8 {
