@@ -192,6 +192,35 @@ utf8_decode_reversed(void* data, usize size)
 
     return {};
 }
+
+// Assumes that 'size' is non-zero.
+internal u32
+utf8_decoded_or_raw_byte(void* data, usize size)
+{
+    ASSERT(size > 0);
+
+    Utf8DecodeResult decode_result = utf8_decode(data, size);
+    if (decode_result.is_valid)
+        return decode_result.codepoint;
+
+    u8 raw_byte = *(u8*)data;
+    return raw_byte;
+}
+
+// Assumes that 'size' is non-zero.
+internal u32
+utf8_decoded_or_raw_byte_reversed(void* data, usize size)
+{
+    ASSERT(size > 0);
+
+    Utf8DecodeResult decode_result = utf8_decode_reversed(data, size);
+    if (decode_result.is_valid)
+        return decode_result.codepoint;
+
+    u8 raw_byte = *((u8*)data + size - 1);
+    return raw_byte;
+}
+
 internal Utf8EncodeResult
 utf8_encode(u32 codepoint)
 {
