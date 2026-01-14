@@ -249,19 +249,16 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
     }
 
     Font* font = font_from_id(FontID_Text);
-
     Vector2s cursor_start_offset = v2s(-column_offset * font->glyph_cell_size.x, 0);
     TextCursor cursor = create_text_cursor(font, buffer_region, cursor_start_offset);
 
     usize line_byte_offset = get_line_byte_offset(buffer, line_offset);
     // @Incomplete: If we fail to decode a codepoint, we shouldn't stop rendering the buffer contents. We should
     // probably render a special glyph (to signal that the file is corrupted there) and carry on...
-    Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + line_byte_offset, buffer->size - line_byte_offset);
-    while (is_valid(buffer_iterator)) {
-        u32 codepoint = buffer_iterator.codepoint;
-        usize buffer_byte_offset = line_byte_offset + buffer_iterator.offset;
-        advance(&buffer_iterator);
-
+    for (Utf8Iterator buffer_iterator = utf8_iterator(buffer->data + line_byte_offset, buffer->size - line_byte_offset);
+         is_in_range(buffer_iterator);
+         advance(&buffer_iterator))
+    {
         TextCursorOverflow cursor_overflow = get_overflow(&cursor);
         if (cursor_overflow.vertical) break; // We ran out of real-estate on the Y-axis.
 
@@ -281,11 +278,15 @@ draw_editor_buffer(Rect2D buffer_region, EditorBuffer* buffer,
             if (!is_degenerated(cell_region)) {
                 render_quad_opaque_unoptimized(cell_region, BACKGROUND_SELECTED_COLOR);
             }
+        u32 codepoint = codepoint_is_valid(buffer_iterator) ? buffer_iterator.codepoint : buffer_iterator.byte_value;
+        usize buffer_byte_offset = line_byte_offset + buffer_iterator.offset;
         }
+
 
         // @Cleanup: We should handle the CRLF/LF line ending dispute in a different way...
         if (codepoint == '\r') {
-            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\n') {
+            auto peek = peek_next(buffer_iterator);
+            if (peek.codepoint_is_valid && peek.codepoint == '\n') {
                 codepoint = '\n';
                 advance(&buffer_iterator);
             }
@@ -416,7 +417,7 @@ draw_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u32 
         u32 current_codepoint_index = 0;
         Utf8Iterator title_iterator = utf8_iterator(title.data, title.size);
         while (current_codepoint_index < codepoint_count) {
-            ASSERT(is_valid(title_iterator));
+            ASSERT(codepoint_is_valid(title_iterator));
             copy_memory(titlebar_text.data + titlebar_text.size,
                         title.data + title_iterator.offset,
                         title_iterator.byte_width);
@@ -470,7 +471,7 @@ draw_editor_titlebar(Rect2D titlebar_region, String title, u32 line_offset, u32 
     if (!is_degenerated(text_region)) {
         TextCursor cursor = create_text_cursor(titlebar_font, text_region, v2s(0, 0));
         for (Utf8Iterator iterator = utf8_iterator(titlebar_text);
-             is_valid(iterator);
+             codepoint_is_valid(iterator);
              advance(&iterator))
         {
             u32 codepoint = iterator.codepoint;
@@ -530,15 +531,15 @@ draw_editor_panel(EditorPanelLayout layout, EditorPanel* panel)
     u32 max_column_offset = 0;
     u32 current_column_offset = 0;
     for (Utf8Iterator buffer_iterator = utf8_iterator(panel->buffer.data, panel->buffer.size);
-         is_valid(buffer_iterator);
+         codepoint_is_valid(buffer_iterator);
          advance(&buffer_iterator))
     {
         u32 codepoint = buffer_iterator.codepoint;
         if (codepoint == '\r') {
             // @Cleanup, @Robustness: We should really handle the LF vs CRLF line encoding more seriously
             // and consistently. There are multiple places in where we do the exact same steps as below...
-            auto peek_result = peek_next(buffer_iterator);
-            if (peek_result.is_valid && peek_result.codepoint == '\n')
+            auto peek = peek_next(buffer_iterator);
+            if (peek.codepoint_is_valid && peek.codepoint == '\n')
                 advance(&buffer_iterator);
 
             ++max_line_offset;

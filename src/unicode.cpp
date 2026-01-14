@@ -294,7 +294,10 @@ struct Utf8Iterator {
 
     // Always equal to the corresponding fields of 'last_decode_result', and thus these contain valid data only
     // when the iterator is valid. Their only purpose is making the accessing API easier to use and read.
-    u32 codepoint;
+    union {
+        u32 codepoint;
+        u8 byte_value;
+    };
     usize byte_width;
 };
 
@@ -309,6 +312,9 @@ utf8_iterator(void* data, usize size)
     if (iterator.last_decode_result.is_valid) {
         iterator.codepoint = iterator.last_decode_result.codepoint;
         iterator.byte_width = iterator.last_decode_result.byte_width;
+    } else if (iterator.offset < iterator.size) {
+        iterator.byte_value = iterator.data[iterator.offset];
+        iterator.byte_width = 1;
     }
     return iterator;
 }
@@ -321,7 +327,14 @@ utf8_iterator(String string)
 }
 
 internal bool
-is_valid(Utf8Iterator iterator)
+is_in_range(Utf8Iterator iterator)
+{
+    bool result = (iterator.offset < iterator.size);
+    return result;
+}
+
+internal bool
+codepoint_is_valid(Utf8Iterator iterator)
 {
     bool result =  iterator.last_decode_result.is_valid;
     return result;
@@ -330,21 +343,49 @@ is_valid(Utf8Iterator iterator)
 internal void
 advance(Utf8Iterator* iterator)
 {
-    ASSERT(is_valid(*iterator));
-    iterator->offset += iterator->last_decode_result.byte_width;
+    ASSERT(is_in_range(*iterator));
+    iterator->offset += iterator->byte_width;
+
     iterator->last_decode_result = utf8_decode(iterator->data + iterator->offset, iterator->size - iterator->offset);
     if (iterator->last_decode_result.is_valid) {
         iterator->codepoint = iterator->last_decode_result.codepoint;
         iterator->byte_width = iterator->last_decode_result.byte_width;
+    } else if (iterator->offset < iterator->size) {
+        iterator->byte_value = iterator->data[iterator->offset];
+        iterator->byte_width = 1;
     }
 }
 
-internal Utf8DecodeResult
+struct Utf8IteratorPeek {
+    bool is_in_range;
+    bool codepoint_is_valid;
+    union {
+        u32 codepoint;
+        u8 byte_value;
+    };
+    usize byte_width;
+};
+
+internal Utf8IteratorPeek
 peek_next(Utf8Iterator iterator)
 {
-    ASSERT(is_valid(iterator));
+    ASSERT(is_in_range(iterator));
     advance(&iterator);
-    return iterator.last_decode_result;
+
+    Utf8IteratorPeek result = {};
+    result.is_in_range = is_in_range(iterator);
+    result.codepoint_is_valid = codepoint_is_valid(iterator);
+    
+    if (result.codepoint_is_valid) {
+        result.codepoint = iterator.codepoint;
+        result.byte_width = iterator.byte_width;
+    }
+    else if (result.is_in_range) {
+        result.byte_value = iterator.byte_value;
+        result.byte_width = iterator.byte_width;
+    }
+
+    return result;
 }
 
 internal usize
@@ -352,7 +393,7 @@ utf8_get_codepoint_count(void* data, usize size)
 {
     usize codepoint_count = 0;
     Utf8Iterator iterator = utf8_iterator(data, size);
-    while (is_valid(iterator)) {
+    while (codepoint_is_valid(iterator)) {
         ++codepoint_count;
         advance(&iterator);
     }

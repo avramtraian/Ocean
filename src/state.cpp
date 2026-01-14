@@ -273,17 +273,18 @@ struct BufferPosition {
     u32 column_offset;
 };
 
+// @Cleanup!
 internal BufferPosition
 get_position_from_byte_offset(EditorBuffer* buffer, usize byte_offset)
 {
     BufferPosition result = {};
 
     Utf8Iterator buffer_iterator = utf8_iterator(buffer->data, buffer->size);
-    while (is_valid(buffer_iterator) && buffer_iterator.offset < byte_offset) {
+    while (codepoint_is_valid(buffer_iterator) && buffer_iterator.offset < byte_offset) {
         if (buffer_iterator.codepoint == '\n') {
             // @Cleanup!
-            Utf8DecodeResult peek = peek_next(buffer_iterator);
-            if (peek.is_valid && peek.codepoint == '\r')
+            auto peek = peek_next(buffer_iterator);
+            if (peek.codepoint_is_valid && peek.codepoint == '\r')
                 advance(&buffer_iterator);
 
             result.line_offset++;
@@ -298,6 +299,7 @@ get_position_from_byte_offset(EditorBuffer* buffer, usize byte_offset)
     return result;
 }
 
+// @Cleanup!
 internal usize
 get_line_byte_offset(EditorBuffer* buffer, u32 line_offset)
 {
@@ -305,14 +307,14 @@ get_line_byte_offset(EditorBuffer* buffer, u32 line_offset)
     usize current_byte_offset = 0;
 
     Utf8Iterator buffer_iterator = utf8_iterator(buffer->data, buffer->size);
-    while (is_valid(buffer_iterator) && current_line_offset < line_offset) {
+    while (codepoint_is_valid(buffer_iterator) && current_line_offset < line_offset) {
         u32 codepoint = buffer_iterator.codepoint;
         current_byte_offset += buffer_iterator.byte_width;
         advance(&buffer_iterator);
 
         if (codepoint == '\n') {
             // @Cleanup!
-            if (is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r') {
+            if (codepoint_is_valid(buffer_iterator) && buffer_iterator.codepoint == '\r') {
                 advance(&buffer_iterator);
                 current_byte_offset += buffer_iterator.byte_width;
             }
