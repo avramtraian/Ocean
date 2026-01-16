@@ -244,7 +244,9 @@ enum class ConsumeWholeWord {
 };
 
 enum class WordMatchType {
-    WHITESPACE,
+    START = 0,
+    LINEAR_WHITESPACE,
+    NEWLINE,
     WORD,
     SPECIAL,
 };
@@ -252,16 +254,28 @@ enum class WordMatchType {
 internal bool
 codepoints_match(u32 current_codepoint, WordMatchType* match_type)
 {
-    if (*match_type == WordMatchType::WHITESPACE) {
-        if      (is_whitespace(current_codepoint)) *match_type = WordMatchType::WHITESPACE;
-        else if (is_word(current_codepoint))       *match_type = WordMatchType::WORD;
-        else                                       *match_type = WordMatchType::SPECIAL;
+    if (*match_type == WordMatchType::START) {
+        if (is_word(current_codepoint))                                  *match_type = WordMatchType::WORD;
+        else if (current_codepoint == '\n' || current_codepoint == '\r') *match_type = WordMatchType::NEWLINE;
+        else if (is_linear_whitespace(current_codepoint))                *match_type = WordMatchType::LINEAR_WHITESPACE;
+        else                                                             *match_type = WordMatchType::SPECIAL;
 
         return true;
     }
 
-    if (is_whitespace(current_codepoint))
-        return (*match_type == WordMatchType::WHITESPACE);
+    if (current_codepoint == '\n' || current_codepoint == '\r')
+        return false; // Don't match multiple consecutive new-line sequences.
+
+    if (*match_type == WordMatchType::LINEAR_WHITESPACE) {
+        if (is_word(current_codepoint))                   *match_type = WordMatchType::WORD;
+        else if (is_linear_whitespace(current_codepoint)) *match_type = WordMatchType::LINEAR_WHITESPACE;
+        else                                              *match_type = WordMatchType::SPECIAL;
+
+        return true;
+    }
+
+    if (is_linear_whitespace(current_codepoint))
+        return (*match_type == WordMatchType::LINEAR_WHITESPACE);
 
     if (is_word(current_codepoint))
         return (*match_type == WordMatchType::WORD);
@@ -291,7 +305,7 @@ move_cursor_right(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_co
             u32 current_codepoint = first_codepoint;
 
             // Advance past all codepoints that match the first codepoint.
-            WordMatchType match_type = WordMatchType::WHITESPACE;
+            WordMatchType match_type = WordMatchType::START;
             while (codepoints_match(current_codepoint, &match_type)) {
                 new_cursor_offset = find_next_codepoint_offset(buffer, new_cursor_offset);
                 if (new_cursor_offset == buffer->size)
@@ -329,7 +343,7 @@ move_cursor_left(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_col
             u32 current_codepoint = first_codepoint;
 
             // Advance past all codepoints that match the first codepoint.
-            WordMatchType match_type = WordMatchType::WHITESPACE;
+            WordMatchType match_type = WordMatchType::START;
             while (codepoints_match(current_codepoint, &match_type)) {
                 new_cursor_offset = find_previous_codepoint_offset(buffer, new_cursor_offset);
                 if (new_cursor_offset == 0)
