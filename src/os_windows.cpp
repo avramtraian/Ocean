@@ -29,6 +29,7 @@
 #include <math.h>
 #include <malloc.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -41,6 +42,9 @@
 #define function         static
 #define local_persistent static
 #define constant         static constexpr
+
+#define BIT(x)           (1 << (x))
+#define ARRAY_COUNT(x)   (sizeof(x) / sizeof((x)[0]))
 
 typedef unsigned char      u8;
 typedef unsigned short     u16;
@@ -142,10 +146,11 @@ internal OSWindowBitmap g_window_bitmap;
 #include "core.cpp"
 #include "unicode.cpp"
 #include "font.cpp"
+#include "config.cpp"
 #include "state.cpp"
 #include "navigation.cpp"
+#include "gather_render_data.cpp"
 #include "render.cpp"
-#include "update.cpp"
 
 //
 // IMPLEMENTATION OF THE PLATFORM-AGNOSTIC OS INTERFACE:
@@ -501,7 +506,7 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
       case WM_SYSKEYDOWN: {
         int virtual_key = w_param;
         KeyCode key_code = win32_key_code_from_virtual_key(virtual_key);
-        g_frame_input.keyboard.keys[key_code].event_count++;
+        g_frame_input.keys[key_code].event_count++;
         return 0;
       }
 
@@ -509,11 +514,9 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
         int codepoint = w_param;
         if (codepoint < ' ') return 0; // Ignore non-printable ASCII codepoints.
 
-        if (g_frame_input.keyboard.char_event_codepoint_count <
-            g_frame_input.keyboard.max_char_event_codepoints)
-        {
-            u32 index = g_frame_input.keyboard.char_event_codepoint_count++;
-            g_frame_input.keyboard.char_event_codepoints[index] = codepoint;
+        if (g_frame_input.char_event_count < g_frame_input.max_char_event_count) {
+            g_frame_input.char_events[g_frame_input.char_event_count] = codepoint;
+            g_frame_input.char_event_count++;
         } else {
             // @Incomplete: Skipping key pressed events when typing is the last thing a text editor should
             // do. However, the value of 'max_char_event_codepoints' is currently quite big...
@@ -532,13 +535,13 @@ win32_reset_frame_input()
          key_code < KeyCode_MaxEnumCount;
          key_code = (KeyCode)(key_code + 1))
     {
-        KeyState* key_state = &g_frame_input.keyboard.keys[key_code];
+        KeyState* key_state = &g_frame_input.keys[key_code];
         key_state->was_pressed_this_frame = false;
         key_state->was_released_this_frame = false;
         key_state->event_count = 0;
     }
 
-    g_frame_input.keyboard.char_event_codepoint_count = 0;
+    g_frame_input.char_event_count = 0;
 }
 
 internal void
@@ -551,7 +554,7 @@ win32_query_frame_input()
          key_code < KeyCode_MaxEnumCount;
          key_code = (KeyCode)(key_code + 1))
     {
-        KeyState* key_state = &g_frame_input.keyboard.keys[key_code];
+        KeyState* key_state = &g_frame_input.keys[key_code];
         bool was_previously_down = key_state->is_down;
         key_state->is_down = false;
 
@@ -618,7 +621,24 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     reload_global_fonts(&fonts_description);
 
     EditorState editor_state = {};
-    initialize_editor(&editor_state);
+    editor_state.active_panel = &editor_state.first_panel;
+    editor_state.first_panel.wrap_content_lines = true;
+    EditorBuffer* buffer = &editor_state.first_panel.content_buffer;
+    buffer->reserved = MiB(16);
+    buffer->committed = MiB(16);
+    buffer->data = (u8*)os_allocate_memory(buffer->committed);
+
+    OSReadFileResult read = os_read_entire_file("C:/Dev/editor3/src/os_windows.cpp");
+    if (read.is_valid) {
+        copy_memory(buffer->data, read.data, read.size);
+        buffer->size = read.size;
+    }
+
+    buffer->cursor_allocated_count = 16;
+    buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
+    buffer->cursor_count = 1;
+    buffer->cursors[0].tail_offset = 0;
+    buffer->cursors[0].head_offset = 25;
 
     g_window_should_close = false;
     while (!g_window_should_close) {
@@ -648,8 +668,25 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         zero_memory(g_window_bitmap.pixels, g_window_bitmap.number_of_rows * g_window_bitmap.bytes_per_row);
 
         win32_query_frame_input();
-        update_editor(&editor_state, &g_frame_input);
-        render_editor_frame(&editor_state);
+
+        if (g_frame_input.keys[KeyCode_Control].is_down) {
+            s32 pixel_height = g_fonts.text.pixel_height;
+            if (g_frame_input.keys[KeyCode_Minus].event_count > 0)
+                pixel_height = clamp(pixel_height - 1, 1, 100);
+            if (g_frame_input.keys[KeyCode_Equal].event_count > 0)
+                pixel_height = clamp(pixel_height + 1, 1, 100);
+
+            if (pixel_height != g_fonts.text.pixel_height) {
+                reset_memory_arena(g_arenas.fonts);
+                fonts_description.text_pixel_height = pixel_height;
+                reload_global_fonts(&fonts_description);
+            }
+        }
+
+        reset_memory_arena(g_arenas.frame);
+        update_navigation_system(&editor_state, &g_frame_input);
+        gather_render_data(&editor_state);
+        draw_editor_frame(&editor_state);
 
         // Display the window bitmap to the screen.
         BITMAPINFO bitmap_info = {};

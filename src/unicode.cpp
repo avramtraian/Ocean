@@ -356,6 +356,14 @@ advance(Utf8Iterator* iterator)
     }
 }
 
+internal inline u32
+codepoint_or_byte_value(Utf8Iterator iterator)
+{
+    if (codepoint_is_valid(iterator))
+        return iterator.codepoint;
+    return iterator.byte_value;
+}
+
 struct Utf8IteratorPeek {
     bool is_in_range;
     bool codepoint_is_valid;

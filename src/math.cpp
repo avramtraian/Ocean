@@ -80,6 +80,15 @@ to_v2s(Vector2u vector2u)
 }
 
 inline Vector2u
+v2u(u32 x, u32 y)
+{
+    Vector2u result;
+    result.x = x;
+    result.y = y;
+    return result;
+}
+
+inline Vector2u
 to_v2u(Vector2s vector2s)
 {
     Vector2u result;

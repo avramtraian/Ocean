@@ -107,6 +107,43 @@ get_column_index(EditorBuffer* buffer, Font* font, u32 tab_size, usize cursor_by
     return current_column_index;
 }
 
+internal u32
+get_line_column_count(EditorBuffer* buffer, Font* font, u32 tab_size, usize line_start_offset)
+{
+    ASSERT(line_start_offset <= buffer->size);
+    ASSERT(tab_size > 0);
+
+    u32 column_index = 0;
+    for (Utf8Iterator iterator = utf8_iterator(buffer->data + line_start_offset, buffer->size - line_start_offset);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        // Transform the CRLF new-line sequence to LF.
+        if (codepoint_is_valid(iterator) && iterator.codepoint == '\r') {
+            auto peek = peek_next(iterator);
+            if (peek.codepoint_is_valid && peek.codepoint == '\n')
+                advance(&iterator);
+        }
+
+        if (codepoint_is_valid(iterator) && iterator.codepoint == '\n')
+            return column_index;
+
+        u32 glyph_cell_count = 6; // "<0x??>" requires 6 glyphs.
+        if (codepoint_is_valid(iterator)) {
+            if (iterator.codepoint == '\t')
+                glyph_cell_count = tab_size - (column_index % tab_size);
+
+            // @Incomplete: Support glyphs that require multiple cells.
+            glyph_cell_count = 1;
+        }
+
+        column_index += glyph_cell_count;
+    }
+
+    // Since we haven't found a new-line character it means that this was the last line in the buffer.
+    return column_index;
+}
+
 enum class SyncTrail {
     NO,
     YES,
@@ -118,17 +155,19 @@ enum class UpdateDesiredColumn {
 };
 
 internal void
-set_cursor_offset(EditorBuffer* buffer, Font* font, u32 tab_size, EditorCursor* cursor, usize byte_offset,
+set_cursor_offset(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, EditorCursor* cursor, usize byte_offset,
                   SyncTrail sync_trail, UpdateDesiredColumn update_desired_column)
 {
     ASSERT(byte_offset <= buffer->size);
 
-    cursor->state.byte_offset = byte_offset;
+    cursor->head_offset = byte_offset;
     if (sync_trail == SyncTrail::YES)
-        cursor->state.trail_byte_offset = byte_offset;
+        cursor->tail_offset = byte_offset;
 
-    if (update_desired_column == UpdateDesiredColumn::YES)
-        cursor->desired_column_offset = get_column_index(buffer, font, tab_size, byte_offset);
+    if (update_desired_column == UpdateDesiredColumn::YES) {
+        u32 column_index = get_column_index(buffer, font, tab_size, byte_offset);
+        cursor->desired_column_index = column_index % visible_column_count;
+    }
 }
 
 internal usize
@@ -230,24 +269,24 @@ codepoints_match(u32 current_codepoint, WordMatchType* match_type)
 }
 
 internal void
-move_cursor_right(EditorBuffer* buffer, Font* font, u32 tab_size, EditorCursor* cursor,
+move_cursor_right(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, EditorCursor* cursor,
                   IsSelecting is_selecting, ConsumeWholeWord consume_whole_word)
 {
-    bool has_selection = (cursor->state.byte_offset != cursor->state.trail_byte_offset);
-    usize new_cursor_offset = cursor->state.byte_offset;
+    bool has_selection = (cursor->head_offset != cursor->tail_offset);
+    usize new_cursor_offset = cursor->head_offset;
 
     if (has_selection && is_selecting == IsSelecting::NO && consume_whole_word == ConsumeWholeWord::NO) {
         // Set the cursor position to the end of the selection.
-        new_cursor_offset = max(cursor->state.byte_offset, cursor->state.trail_byte_offset);
-    } else if (cursor->state.byte_offset < buffer->size) {
+        new_cursor_offset = max(cursor->head_offset, cursor->tail_offset);
+    } else if (cursor->head_offset < buffer->size) {
         if (consume_whole_word == ConsumeWholeWord::NO) {
             // Advance past the next codepoint.
-            new_cursor_offset = find_next_codepoint_offset(buffer, cursor->state.byte_offset);
+            new_cursor_offset = find_next_codepoint_offset(buffer, cursor->head_offset);
         } else {
-            u32 first_codepoint = utf8_decoded_or_raw_byte(buffer->data + cursor->state.byte_offset,
-                                                           buffer->size - cursor->state.byte_offset);
+            u32 first_codepoint = utf8_decoded_or_raw_byte(buffer->data + cursor->head_offset,
+                                                           buffer->size - cursor->head_offset);
 
-            new_cursor_offset = cursor->state.byte_offset;
+            new_cursor_offset = cursor->head_offset;
             u32 current_codepoint = first_codepoint;
 
             // Advance past all codepoints that match the first codepoint.
@@ -264,27 +303,28 @@ move_cursor_right(EditorBuffer* buffer, Font* font, u32 tab_size, EditorCursor* 
     }
 
     SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
-    set_cursor_offset(buffer, font, tab_size, cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::YES);
+    set_cursor_offset(buffer, font, tab_size, visible_column_count,
+                      cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::YES);
 }
 
 internal void
-move_cursor_left(EditorBuffer* buffer, Font* font, u32 tab_size, EditorCursor* cursor,
+move_cursor_left(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, EditorCursor* cursor,
                  IsSelecting is_selecting, ConsumeWholeWord consume_whole_word)
 {
-    bool has_selection = (cursor->state.byte_offset != cursor->state.trail_byte_offset);
-    usize new_cursor_offset = cursor->state.byte_offset;
+    bool has_selection = (cursor->head_offset != cursor->tail_offset);
+    usize new_cursor_offset = cursor->head_offset;
 
     if (has_selection && is_selecting == IsSelecting::NO && consume_whole_word == ConsumeWholeWord::NO) {
         // Set the cursor position to the beginning of the selection.
-        new_cursor_offset = min(cursor->state.byte_offset, cursor->state.trail_byte_offset);
-    } else if (cursor->state.byte_offset > 0) {
+        new_cursor_offset = min(cursor->head_offset, cursor->tail_offset);
+    } else if (cursor->head_offset > 0) {
         if (consume_whole_word == ConsumeWholeWord::NO) {
             // Devance to the previous codepoint.
-            new_cursor_offset = find_previous_codepoint_offset(buffer, cursor->state.byte_offset);
+            new_cursor_offset = find_previous_codepoint_offset(buffer, cursor->head_offset);
         } else {
-            u32 first_codepoint = utf8_decoded_or_raw_byte_reversed(buffer->data, cursor->state.byte_offset);
+            u32 first_codepoint = utf8_decoded_or_raw_byte_reversed(buffer->data, cursor->head_offset);
 
-            new_cursor_offset = cursor->state.byte_offset;
+            new_cursor_offset = cursor->head_offset;
             u32 current_codepoint = first_codepoint;
 
             // Advance past all codepoints that match the first codepoint.
@@ -300,7 +340,8 @@ move_cursor_left(EditorBuffer* buffer, Font* font, u32 tab_size, EditorCursor* c
     }
 
     SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
-    set_cursor_offset(buffer, font, tab_size, cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::YES);
+    set_cursor_offset(buffer, font, tab_size, visible_column_count,
+                      cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::YES);
 }
 
 // Returns the byte offset (relative to the buffer start) of the column at the given index. If the
@@ -350,45 +391,97 @@ get_column_offset(EditorBuffer* buffer, Font* font, u32 tab_size, usize line_sta
     return current_offset;
 }
 
-enum WrapLines {
-    NO,
-    YES,
-};
-
-internal void
-move_cursor_down(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, WrapLines wrap_lines,
-                 EditorCursor* cursor, IsSelecting is_selecting)
+internal u32
+get_number_of_lines(void* data, usize size)
 {
-    if (wrap_lines == WrapLines::NO) {
-        usize new_cursor_offset = get_next_line_offset(buffer, cursor->state.byte_offset);
-        if (new_cursor_offset != cursor->state.byte_offset) {
-            // This function handles the cases when there are not enough columns on the next line, as
-            // well as when the desired column index is inside a glyph.
-            new_cursor_offset = get_column_offset(buffer, font, tab_size, new_cursor_offset,
-                                                  cursor->desired_column_offset);
-        }
+    if (size == 0)
+        return 0;
 
-        SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
-        set_cursor_offset(buffer, font, tab_size, cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::NO);
+    u8* iterator = (u8*)data;
+    u8* iterator_end = iterator + size;
+
+    u32 line_count = 1;
+    while (iterator != iterator_end) {
+        if (*iterator == '\n')
+            ++line_count;
+        ++iterator;
     }
+
+    return line_count;
 }
 
 internal void
-move_cursor_up(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, WrapLines wrap_lines,
-               EditorCursor* cursor, IsSelecting is_selecting)
+move_cursor_down(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+                 EditorCursor* cursor, IsSelecting is_selecting)
 {
-    if (wrap_lines == WrapLines::NO) {
-        usize new_cursor_offset = get_previous_line_offset(buffer, cursor->state.byte_offset);
-        if (new_cursor_offset != cursor->state.byte_offset) {
-            // This function handles the cases when there are not enough columns on the previous line, as
+    usize current_line_offset = get_line_start_offset(buffer, cursor->head_offset);
+    u32 line_column_count = get_line_column_count(buffer, font, tab_size, current_line_offset);
+    u32 cursor_column_index = get_column_index(buffer, font, tab_size, cursor->head_offset); // @Speed: This also calculates 'current_line_offset' which is not very good for performance.
+
+    u32 wrapped_line_count = (line_column_count + visible_column_count - 1) / visible_column_count; // How many rendering lines does the current line require in order to be rendered.
+    u32 wrapped_line_index = cursor_column_index / visible_column_count; // On which rendering line is the cursor currently on.
+
+    usize new_cursor_offset;
+    if (wrapped_line_index + 1 < wrapped_line_count) {
+        // @Incomplete: This doesn't take into consideration multi-width glyphs (such as tabs) that don't fit
+        // entirely at the end of the current rendering line and thus waste a few cells, which would cause the
+        // cursor to go too far to the right.
+        new_cursor_offset = get_column_offset(buffer, font, tab_size, cursor->head_offset, visible_column_count);
+    } else {
+        // We are on the last rendering line of the wrapped line, meaning we should jump to the next buffer line.
+
+        new_cursor_offset = get_next_line_offset(buffer, cursor->head_offset);
+        if (new_cursor_offset != cursor->head_offset) {
+            // This function handles the cases when there are not enough columns on the next line, as
             // well as when the desired column index is inside a glyph.
             new_cursor_offset = get_column_offset(buffer, font, tab_size, new_cursor_offset,
-                                                  cursor->desired_column_offset);
+                                                  cursor->desired_column_index);
         }
-
-        SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
-        set_cursor_offset(buffer, font, tab_size, cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::NO);
     }
+
+    SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
+    set_cursor_offset(buffer, font, tab_size, visible_column_count,
+                      cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::NO);
+}
+
+internal void
+move_cursor_up(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+               EditorCursor* cursor, IsSelecting is_selecting)
+{
+    u32 cursor_column_index = get_column_index(buffer, font, tab_size, cursor->head_offset);
+    u32 wrapped_line_index = cursor_column_index / visible_column_count; // On which rendering line is the cursor currently on.
+
+    usize new_cursor_offset;
+    if (wrapped_line_index > 0) {
+        usize current_line_offset = get_line_start_offset(buffer, cursor->head_offset);
+        // @Incomplete: This doesn't take into consideration multi-width glyphs (such as tabs) that don't fit
+        // entirely at the end of the current rendering line and thus waste a few cells, which would cause the
+        // cursor to go too far to the right.
+        u32 new_column_index = (wrapped_line_index - 1) * visible_column_count + cursor->desired_column_index;
+        new_cursor_offset = get_column_offset(buffer, font, tab_size, current_line_offset, new_column_index);
+    } else {
+        usize previous_line_offset = get_previous_line_offset(buffer, cursor->head_offset);
+        if (previous_line_offset != cursor->head_offset) {
+            u32 prev_line_column_count = get_line_column_count(buffer, font, tab_size, previous_line_offset);
+            u32 prev_wrapped_line_count = (prev_line_column_count + visible_column_count - 1) / visible_column_count;
+
+            if (prev_wrapped_line_count == 1) {
+                // This function handles the cases when there are not enough columns on the previous line, as
+                // well as when the desired column index is inside a glyph.
+                new_cursor_offset = get_column_offset(buffer, font, tab_size, previous_line_offset,
+                                                      cursor->desired_column_index);
+            } else {
+                u32 new_column_index = (prev_wrapped_line_count - 1) * visible_column_count + cursor->desired_column_index;
+                new_cursor_offset = get_column_offset(buffer, font, tab_size, previous_line_offset, new_column_index);
+            }
+        } else {
+            new_cursor_offset = cursor->head_offset;
+        }
+    }
+
+    SyncTrail sync_trail = (is_selecting == IsSelecting::YES) ? SyncTrail::NO : SyncTrail::YES;
+    set_cursor_offset(buffer, font, tab_size, visible_column_count,
+                      cursor, new_cursor_offset, sync_trail, UpdateDesiredColumn::NO);
 }
 
 internal void
@@ -412,11 +505,11 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
 
     // @Cleanup: Make this validation step nicer or remove it if it turns out this assumption is not always true,
     // or it isn't required by the following merge implementation.
-    bool trails_are_before_heads = cursors[0].state.byte_offset >= cursors[0].state.trail_byte_offset;
+    bool trails_are_before_heads = cursors[0].head_offset >= cursors[0].tail_offset;
     for (u32 index = 0; index < cursor_count; ++index) {
-        CursorState state = cursors[index].state;
-        if (state.byte_offset != state.trail_byte_offset) { // Since there is no well-defined order.
-            bool cursor_trail_order = state.byte_offset >= state.trail_byte_offset;
+        EditorCursor* cursor = cursors + index;
+        if (cursors->head_offset != cursors->tail_offset) { // Since there is no well-defined order.
+            bool cursor_trail_order = cursors->head_offset >= cursors->tail_offset;
             ASSERT(cursor_trail_order == trails_are_before_heads);
         }
     }
@@ -430,24 +523,24 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
 
     for (int i = 0; i < current_cursor_count - 1; ++i) {
         for (int j = i + 1; j < current_cursor_count; ++j) {
-            usize a0 = min(cursors[i].state.byte_offset, cursors[i].state.trail_byte_offset);
-            usize a1 = max(cursors[i].state.byte_offset, cursors[i].state.trail_byte_offset);
+            usize a0 = min(cursors[i].head_offset, cursors[i].tail_offset);
+            usize a1 = max(cursors[i].head_offset, cursors[i].tail_offset);
 
-            usize b0 = min(cursors[j].state.byte_offset, cursors[j].state.trail_byte_offset);
-            usize b1 = max(cursors[j].state.byte_offset, cursors[j].state.trail_byte_offset);
+            usize b0 = min(cursors[j].head_offset, cursors[j].tail_offset);
+            usize b1 = max(cursors[j].head_offset, cursors[j].tail_offset);
 
             if (a0 <= b0 && b0 < a1) {
                 // Cursor order: A .. B
                 if (trails_are_before_heads) {
                     // We are selecting "forward". Keep B and merge A into it.
-                    cursors[j].state.trail_byte_offset = cursors[i].state.trail_byte_offset;
+                    cursors[j].tail_offset = cursors[i].tail_offset;
                     remove_cursor_unordered(cursors, current_cursor_count, i);
                     --current_cursor_count;
                     --i;
                     break; // Break out of the j loop.
                 } else {
                     // We are selecting "backwards". Keep A and merge B into it.
-                    cursors[i].state.trail_byte_offset = cursors[j].state.trail_byte_offset;
+                    cursors[i].tail_offset = cursors[j].tail_offset;
                     remove_cursor_unordered(cursors, cursor_count, j);
                     --current_cursor_count;
                     --j;
@@ -456,13 +549,13 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
                 // Cursor order: B .. A
                 if (trails_are_before_heads) {
                     // We are selecting "forward". Keep A and merge B into it.
-                    cursors[i].state.trail_byte_offset = cursors[j].state.trail_byte_offset;
+                    cursors[i].tail_offset = cursors[j].tail_offset;
                     remove_cursor_unordered(cursors, cursor_count, j);
                     --current_cursor_count;
                     --j;
                 } else {
                     // We are selecting "backwards". Keep B and merge A into it.
-                    cursors[j].state.trail_byte_offset = cursors[i].state.trail_byte_offset;
+                    cursors[j].tail_offset = cursors[i].tail_offset;
                     remove_cursor_unordered(cursors, current_cursor_count, i);
                     --current_cursor_count;
                     --i;
@@ -476,70 +569,96 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
 }
 
 internal u32
-spawn_cursor_at_offset(EditorPanel* panel, usize cursor_byte_offset, u32 desired_column_index)
+spawn_cursor_at_offset(EditorBuffer* buffer, usize cursor_byte_offset, u32 desired_column_index)
 {
-    ASSERT(panel->cursor_count < panel->cursor_allocated_count); // @Incomplete!
-    u32 cursor_index = panel->cursor_count++;
-    EditorCursor* cursor = panel->cursors + cursor_index;
+    ASSERT(buffer->cursor_count < buffer->cursor_allocated_count); // @Incomplete!
+    u32 cursor_index = buffer->cursor_count++;
+    EditorCursor* cursor = buffer->cursors + cursor_index;
 
-    cursor->state.byte_offset = cursor_byte_offset;
-    cursor->state.trail_byte_offset = cursor_byte_offset;
-    cursor->desired_column_offset = desired_column_index;
+    cursor->head_offset = cursor_byte_offset;
+    cursor->tail_offset = cursor_byte_offset;
+    cursor->desired_column_index = desired_column_index;
 
     return cursor_index;
 }
 
 internal void
+destroy_extra_cursors(EditorBuffer* buffer)
+{
+    // Destroy all but the first cursor. Note that there is nothing special to the first cursor, but
+    // this makes the implementation trivial and the user usually doesn't care about which cursor
+    // remains alive (hopefully?).
+    buffer->cursor_count = 1;
+}
+
+internal void
 update_navigation_system(EditorState* state, FrameInput* frame_input)
 {
-    EditorBuffer* buffer = &state->active_panel->buffer;
+    EditorPanel* panel = state->active_panel;
+    EditorBuffer* buffer = &state->active_panel->content_buffer;
     Font* text_font = font_from_id(FontID_Text);
+
+    u32 view_column_count = UINT32_MAX;
+    if (panel->wrap_content_lines) {
+        EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
+        view_column_count = rect_size_x(layout.content_region) / text_font->glyph_cell_size.x;
+    }
+    ASSERT(view_column_count > 0);
+
+    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
+        EditorCursor* cursor = buffer->cursors + cursor_index;
+        cursor->desired_column_index = cursor->desired_column_index % view_column_count;
+    }
+
+    u32 buffer_line_count = get_number_of_lines(buffer->data, buffer->size);
     
     // Move the existing cursors:
     {
-        EditorCursor* cursors = state->active_panel->cursors;
-        u32 cursor_count = state->active_panel->cursor_count;
+        EditorCursor* cursors = buffer->cursors;
+        u32 cursor_count = buffer->cursor_count;
 
-        IsSelecting cursor_is_selecting = (frame_input->keyboard.keys[KeyCode_Shift].is_down)
+        IsSelecting cursor_is_selecting = (frame_input->keys[KeyCode_Shift].is_down)
                                             ? IsSelecting::YES
                                             : IsSelecting::NO;
 
-        ConsumeWholeWord cursor_consume_whole_word = (frame_input->keyboard.keys[KeyCode_Control].is_down)
+        ConsumeWholeWord cursor_consume_whole_word = (frame_input->keys[KeyCode_Control].is_down)
                                                         ? ConsumeWholeWord::YES
                                                         : ConsumeWholeWord::NO;
 
         // Move cursor right:
-        for (u32 i = 0; i < frame_input->keyboard.keys[KeyCode_Right].event_count; ++i) {
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Right].event_count; ++i) {
             for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                 EditorCursor* cursor = cursors + cursor_index;
-                move_cursor_right(buffer, text_font, TAB_SIZE, cursor, cursor_is_selecting, cursor_consume_whole_word);
+                move_cursor_right(buffer, text_font, TAB_SIZE, view_column_count,
+                                  cursor, cursor_is_selecting, cursor_consume_whole_word);
             }
         }
 
         // Move cursor left:
-        for (u32 i = 0; i < frame_input->keyboard.keys[KeyCode_Left].event_count; ++i) {
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Left].event_count; ++i) {
             for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                 EditorCursor* cursor = cursors + cursor_index;
-                move_cursor_left(buffer, text_font, TAB_SIZE, cursor, cursor_is_selecting, cursor_consume_whole_word);
+                move_cursor_left(buffer, text_font, TAB_SIZE, view_column_count,
+                                 cursor, cursor_is_selecting, cursor_consume_whole_word);
             }
         }
 
-        if (!frame_input->keyboard.keys[KeyCode_Control].is_down) {
+        if (!frame_input->keys[KeyCode_Control].is_down) {
             // Move cursor down:
-            for (u32 i = 0; i < frame_input->keyboard.keys[KeyCode_Down].event_count; ++i) {
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
                 for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                     EditorCursor* cursor = cursors + cursor_index;
-                // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                    move_cursor_down(buffer, text_font, TAB_SIZE, 0, WrapLines::NO, cursor, cursor_is_selecting);
+                    // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
+                    move_cursor_down(buffer, text_font, TAB_SIZE, view_column_count, cursor, cursor_is_selecting);
                 }
             }
 
             // Move cursor up:
-            for (u32 i = 0; i < frame_input->keyboard.keys[KeyCode_Up].event_count; ++i) {
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i) {
                 for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                     EditorCursor* cursor = cursors + cursor_index;
-                // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                    move_cursor_up(buffer, text_font, TAB_SIZE, 0, WrapLines::NO, cursor, cursor_is_selecting);
+                    // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
+                    move_cursor_up(buffer, text_font, TAB_SIZE, view_column_count, cursor, cursor_is_selecting);
                 }
             }
         }
@@ -547,37 +666,50 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
 
     // Spawn new cursors:
     {
-        if (frame_input->keyboard.keys[KeyCode_Control].is_down &&
-            frame_input->keyboard.keys[KeyCode_Alt].is_down)
+        if (frame_input->keys[KeyCode_Control].is_down &&
+            frame_input->keys[KeyCode_Alt].is_down)
         {
-            for (u32 i = 0; i < frame_input->keyboard.keys[KeyCode_Down].event_count; ++i) {
-                u32 src_cursor_index = state->active_panel->cursor_count - 1;
-                EditorCursor* src_cursor = state->active_panel->cursors + src_cursor_index;
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
+                u32 src_cursor_index = buffer->cursor_count - 1;
+                EditorCursor* src_cursor = buffer->cursors + src_cursor_index;
 
                 // Duplicate the source cursor.
-                u32 new_cursor_index = spawn_cursor_at_offset(state->active_panel, src_cursor->state.byte_offset, 
-                                                              src_cursor->desired_column_offset);
-                EditorCursor* new_cursor = state->active_panel->cursors + new_cursor_index;
+                u32 new_cursor_index = spawn_cursor_at_offset(buffer, src_cursor->head_offset, 
+                                                              src_cursor->desired_column_index);
+                EditorCursor* new_cursor = buffer->cursors + new_cursor_index;
 
                 // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                move_cursor_down(buffer, text_font, TAB_SIZE, 0, WrapLines::NO, new_cursor, IsSelecting::NO);
+                move_cursor_down(buffer, text_font, TAB_SIZE, view_column_count, new_cursor, IsSelecting::NO);
             }
         }
     }
 
     // Destroy cursors:
     {
-        EditorCursor* cursors = state->active_panel->cursors;
-        u32 cursor_count = state->active_panel->cursor_count;
+        EditorCursor* cursors = buffer->cursors;
+        u32 cursor_count = buffer->cursor_count;
 
         u32 new_cursor_count = merge_overlapping_cursors(cursors, cursor_count);
-        state->active_panel->cursor_count = new_cursor_count;
+        buffer->cursor_count = new_cursor_count;
 
-        if (frame_input->keyboard.keys[KeyCode_Escape].was_pressed_this_frame) {
-            // Destroy all but the first cursor. Note that there is nothing special to the first cursor, but
-            // this makes the implementation trivial and the user usually doesn't care about which cursor
-            // remains alive (hopefully?).
-            state->active_panel->cursor_count = 1;
+        if (frame_input->keys[KeyCode_Escape].was_pressed_this_frame)
+            destroy_extra_cursors(buffer);
+    }
+
+    // Move buffer view:
+    if (frame_input->keys[KeyCode_Control].is_down &&
+        !frame_input->keys[KeyCode_Alt].is_down)
+    {
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
+            state->active_panel->content_view_line_index = clamp((s32)state->active_panel->content_view_line_index + 1,
+                                                                 (s32)0,
+                                                                 (s32)buffer_line_count - 2);
+        }
+
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i) {
+            state->active_panel->content_view_line_index = clamp((s32)state->active_panel->content_view_line_index - 1,
+                                                                 (s32)0,
+                                                                 (s32)buffer_line_count - 2);
         }
     }
 }
