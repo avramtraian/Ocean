@@ -209,6 +209,32 @@ next_line(TextCursor* cursor)
 // DRAWING THE EDITOR:
 //
 
+internal Rect2D
+get_glyph_cell_region(TextCursor* cursor, u32 cell_count)
+{
+    Vector2s cell_size = v2s(cursor->font->glyph_cell_size.x, cursor->font->line_height);
+    Vector2s cell_offset;
+    cell_offset.x = cursor->current_cell_offset.x;
+    cell_offset.y = cursor->current_cell_offset.y - (cursor->font->line_height - cursor->font->glyph_cell_size.y + 1) / 2;
+    Rect2D cell_region = rect_offset_size(cell_offset, v2u(cell_size.x * cell_count, cell_size.y));
+    return cell_region;
+}
+
+internal Rect2D
+get_cursor_region(TextCursor* cursor)
+{
+    Vector2s cursor_size;
+    cursor_size.x = cursor->font->glyph_cell_size.x * CURSOR_SIZE_PERCENTAGE_X;
+    cursor_size.y = cursor->font->glyph_cell_size.y * CURSOR_SIZE_PERCENTAGE_Y;
+
+    Rect2D cursor_region = {};
+    cursor_region.min.x = cursor->current_cell_offset.x;
+    cursor_region.min.y = cursor->current_cell_offset.y + (cursor->font->glyph_cell_size.y - cursor_size.y) / 2;
+    cursor_region.max.x = cursor_region.min.x + cursor_size.x;
+    cursor_region.max.y = cursor_region.min.y + cursor_size.y;
+    return cursor_region;
+}
+
 internal void
 draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
 {
@@ -228,14 +254,8 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
             GlyphRenderData* glyph_render_data = line->glyphs + glyph_index;
             u32 codepoint = glyph_render_data->codepoint;
 
-            // Determine the current cell offset and size.
-            Vector2s cell_size = v2s(font->glyph_cell_size.x, font->line_height);
-            Vector2s cell_offset;
-            cell_offset.x = cursor.current_cell_offset.x;
-            cell_offset.y = cursor.current_cell_offset.y - (font->line_height - font->glyph_cell_size.y + 1) / 2;
-
             // Render the background.
-            Rect2D cell_region = rect_offset_size(cell_offset, v2u(cell_size.x * glyph_render_data->cell_count, cell_size.y));
+            Rect2D cell_region = get_glyph_cell_region(&cursor, glyph_render_data->cell_count);
             cell_region = rect_intersect(cell_region, region);
             if (!is_degenerated(cell_region))
                 render_quad_opaque_unoptimized(cell_region, glyph_render_data->background);
@@ -247,17 +267,8 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
             }
 
             if (glyph_render_data->flags & GlyphRenderFlag_HasCursor) {
-                Vector2s cursor_size;
-                cursor_size.x = font->glyph_cell_size.x * CURSOR_SIZE_PERCENTAGE_X;
-                cursor_size.y = font->glyph_cell_size.y * CURSOR_SIZE_PERCENTAGE_Y;
-
-                Rect2D cursor_region = {};
-                cursor_region.min.x = cursor.current_cell_offset.x;
-                cursor_region.min.y = cursor.current_cell_offset.y + (font->glyph_cell_size.y - cursor_size.y) / 2;
-                cursor_region.max.x = cursor_region.min.x + cursor_size.x;
-                cursor_region.max.y = cursor_region.min.y + cursor_size.y;
+                Rect2D cursor_region = get_cursor_region(&cursor);
                 cursor_region = rect_intersect(cursor_region, region); // @Incomplete: The cursor region should be intersected with the panel region, not with the buffer region. When wrapping lines and when the cursor is rendered by the new-line glyph this would cause the cursor to be clipped out!
-
                 if (!is_degenerated(cursor_region))
                     render_quad_opaque_unoptimized(cursor_region, CURSOR_COLOR);
             }
@@ -293,7 +304,7 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
 }
 
 internal void
-draw_text_line(LineRenderData* render_data, FontID font_id, Rect2D region)
+draw_text_line(LineRenderData* render_data, FontID font_id, Rect2D region, LinearColor cursor_color)
 {
     if (is_degenerated(region))
         return;
@@ -305,10 +316,24 @@ draw_text_line(LineRenderData* render_data, FontID font_id, Rect2D region)
         GlyphRenderData* glyph_render_data = render_data->glyphs + glyph_index;
         u32 codepoint = glyph_render_data->codepoint;
 
+        // Render the background.
+        Rect2D cell_region = get_glyph_cell_region(&cursor, glyph_render_data->cell_count);
+        cell_region = rect_intersect(cell_region, region);
+        if (!is_degenerated(cell_region))
+            render_quad_opaque_unoptimized(cell_region, glyph_render_data->background);
+
         if ('!' <= codepoint && codepoint <= '~') {
             auto* glyph = &font->ascii_grayscale_glyphs_stb[codepoint - '!'];
             Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
             render_glyph_bitmap_unoptimized(glyph, glyph_offset, region, glyph_render_data->foreground);
+        }
+
+        // Render the cursor.
+        if (glyph_render_data->flags & GlyphRenderFlag_HasCursor) {
+            Rect2D cursor_region = get_cursor_region(&cursor);
+            cursor_region = rect_intersect(cursor_region, region);
+            if (!is_degenerated(cursor_region))
+                render_quad_opaque_unoptimized(cursor_region, cursor_color);
         }
 
         advance(&cursor, glyph_render_data->cell_count);
@@ -361,8 +386,8 @@ draw_panel_titlebar(LineRenderData* buffer_name_render_data, LineRenderData* cur
     buffer_name_region = rect_intersect(buffer_name_region, region);
     cursor_info_region = rect_intersect(cursor_info_region, region);
 
-    draw_text_line(buffer_name_render_data, FontID::UI_BOLD, buffer_name_region);
-    draw_text_line(cursor_info_render_data, FontID::UI_REGULAR, cursor_info_region);
+    draw_text_line(buffer_name_render_data, FontID::UI_BOLD, buffer_name_region, {});
+    draw_text_line(cursor_info_render_data, FontID::UI_REGULAR, cursor_info_region, {});
 }
 
 internal void
