@@ -47,6 +47,13 @@ clamp(T value, T min_bound, T max_bound)
 }
 
 template<typename T> inline T
+clamp_non_zero(T value)
+{
+    T result = (value < 0) ? 0 : value;
+    return result;
+}
+
+template<typename T> inline T
 lerp(T a, T b, f32 t)
 {
     T result = a + ((f32)b - (f32)a) * t;

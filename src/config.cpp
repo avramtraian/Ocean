@@ -4,13 +4,17 @@
  */
 
 constant s32 WRAP_SYMBOL_PADDING_SIZE = 6;
-constant s32 TITLEBAR_SIZE            = 30;
 constant s32 SCROLLBAR_SIZE           = 15;
 constant s32 SPLITTER_SIZE            = 8;
 constant s32 TAB_SIZE                 = 4;
 
 constant f32 CURSOR_SIZE_PERCENTAGE_X = 0.2F;
 constant f32 CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
+
+// Relative to the font glyph cell size.
+constant f32 TITLEBAR_PADDING_SIDE_PERCENTAGE   = 0.5F;
+constant f32 TITLEBAR_PADDING_TOP_PERCENTAGE    = 0.2F;
+constant f32 TITLEBAR_PADDING_BOTTOM_PERCENTAGE = 0.1F;
 
 constant f32 START_WRAP_SYMBOL_SIZE_PERCENTAGE_Y = 0.5F;
 constant f32 END_WRAP_SYMBOL_SIZE_PERCENTAGE_Y   = 0.5F;
@@ -20,8 +24,8 @@ const LinearColor END_WRAP_SYMBOL_COLOR          = linear_color(0, 0, 255);
 const LinearColor FOREGROUND_COLOR           = linear_color(200, 200, 165);
 const LinearColor BACKGROUND_COLOR           = linear_color(4, 36, 40);
 const LinearColor BACKGROUND_SELECTED_COLOR  = linear_color(15, 30, 220);
-const LinearColor TITLEBAR_BACKGROUND_COLOR  = linear_color(189, 180, 98);
-const LinearColor TITLEBAR_FOREGROUND_COLOR  = linear_color(25, 25, 25);
+const LinearColor TITLEBAR_FOREGROUND_COLOR  = linear_color(40, 40, 40);
+const LinearColor TITLEBAR_BACKGROUND_COLOR  = linear_color(170, 170, 170);
 const LinearColor SPLITTER_COLOR             = linear_color(189, 180, 98);
 const LinearColor SCROLLBAR_BACKGROUND_COLOR = linear_color(210, 210, 210);
 const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);

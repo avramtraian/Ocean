@@ -145,7 +145,122 @@ gather_panel_render_data(EditorPanel* panel)
 }
 
 internal void
+generate_line_render_data(LineRenderData* render_data, String text, LinearColor foreground, LinearColor background)
+{
+    for (Utf8Iterator iterator = utf8_iterator(text);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        GlyphRenderData* glyph = push_glyph_to_line(render_data);
+        glyph->codepoint = codepoint_or_byte_value(iterator);
+        glyph->cell_count = 1; // @Incomplete: Add support for glyphs that require multiple cells.
+        glyph->foreground = foreground;
+        glyph->background = background;
+    }
+}
+
+internal void
+gather_titlebar_render_data(EditorPanel* panel)
+{
+    LineRenderData* buffer_name_render_data = &panel->buffer_name_render_data;
+    LineRenderData* cursor_info_render_data = &panel->cursor_info_render_data;
+
+    ZERO_STRUCT_POINTER(buffer_name_render_data);
+    ZERO_STRUCT_POINTER(cursor_info_render_data);
+
+    generate_line_render_data(buffer_name_render_data, panel->buffer_name,
+                              TITLEBAR_FOREGROUND_COLOR, TITLEBAR_BACKGROUND_COLOR);
+
+    EditorBuffer* content_buffer = &panel->content_buffer;
+    char cursor_info_buffer[256] = {};
+    String cursor_info = {};
+
+    if (content_buffer->cursor_count == 1) {
+        u32 max_cell_index_x = 0;
+        u32 max_cell_index_y = 0;
+        u32 current_cell_index_x = 0;
+
+        for (Utf8Iterator iterator = utf8_iterator(content_buffer->data, content_buffer->size);
+             is_in_range(iterator);
+             advance(&iterator))
+        {
+            // Handle the CRLF new-line sequence.
+            if (codepoint_is_valid(iterator) && iterator.codepoint == '\r') {
+                auto peek = peek_next(iterator);
+                if (peek.codepoint_is_valid && peek.codepoint == '\n')
+                    advance(&iterator);
+            }
+
+            if (codepoint_is_valid(iterator) && iterator.codepoint == '\n') {
+                current_cell_index_x = 0;
+                ++max_cell_index_y;
+            }
+
+            u32 glyph_cell_count = 6; // "<0x??>" requires 6 glyphs.
+            if (codepoint_is_valid(iterator)) {
+                glyph_cell_count = 1; // @Incomplete: Handle glyphs that require multiple cells.
+
+                if (iterator.codepoint == '\t')
+                    glyph_cell_count = TAB_SIZE - (current_cell_index_x % TAB_SIZE);
+            } else {
+                max_cell_index_x = max(max_cell_index_x, current_cell_index_x);
+            }
+
+            current_cell_index_x += glyph_cell_count;
+            max_cell_index_x = max(max_cell_index_x, current_cell_index_x);
+        }
+
+        int column_min_size = string_from_number(max_cell_index_x + 1).size;
+        int line_min_size   = string_from_number(max_cell_index_y + 1).size;
+
+        EditorCursor* cursor = &content_buffer->cursors[0];
+        CursorPosition position = get_cursor_position(content_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+                                                      cursor->head_offset);
+
+        if (cursor->head_offset == cursor->tail_offset) {
+            int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "L#%*d C#%*d",
+                                line_min_size, position.line_index + 1,
+                                column_min_size, position.column_index + 1);
+            cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
+        } else {
+            CursorSelectionRange selection_range = get_selection_range(cursor);
+            int bytes_selected = selection_range.end_offset - selection_range.start_offset; // @Overflow!
+            char* bytes_suffix = (bytes_selected > 1) ? "s" : "";
+
+            int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "L#%*d C#%*d, %d byte%s selected",
+                                line_min_size, position.line_index + 1,
+                                column_min_size, position.column_index + 1,
+                                bytes_selected, bytes_suffix);
+            cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
+        }
+    } else if (content_buffer->cursor_count > 1) {
+        int bytes_selected = 0;
+        for (u32 index = 0; index < content_buffer->cursor_count; index++) {
+            EditorCursor* cursor = content_buffer->cursors + index;
+            CursorSelectionRange selection_range = get_selection_range(cursor);
+            bytes_selected += selection_range.end_offset - selection_range.start_offset; // @Overflow!
+        }
+        char* bytes_suffix = (bytes_selected > 1) ? "s" : "";
+
+        if (bytes_selected > 0) {
+            int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "%d cursors, %d byte%s selected",
+                                content_buffer->cursor_count,
+                                bytes_selected, bytes_suffix);
+            cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
+        } else {
+            int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "%d cursors",
+                                content_buffer->cursor_count);
+            cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
+        }
+    }
+
+    generate_line_render_data(cursor_info_render_data, cursor_info,
+                              TITLEBAR_FOREGROUND_COLOR, TITLEBAR_BACKGROUND_COLOR);
+}
+
+internal void
 gather_render_data(EditorState* state)
 {
     gather_panel_render_data(&state->first_panel);
+    gather_titlebar_render_data(&state->first_panel);
 }

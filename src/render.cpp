@@ -293,10 +293,86 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
 }
 
 internal void
+draw_text_line(LineRenderData* render_data, FontID font_id, Rect2D region)
+{
+    if (is_degenerated(region))
+        return;
+
+    Font* font = font_from_id(font_id);
+    TextCursor cursor = create_text_cursor(font, region, v2s(0, 0));
+
+    for (u32 glyph_index = 0; glyph_index < render_data->glyph_count; ++glyph_index) {
+        GlyphRenderData* glyph_render_data = render_data->glyphs + glyph_index;
+        u32 codepoint = glyph_render_data->codepoint;
+
+        if ('!' <= codepoint && codepoint <= '~') {
+            auto* glyph = &font->ascii_grayscale_glyphs_stb[codepoint - '!'];
+            Vector2s glyph_offset = get_glyph_offset(&cursor, glyph->render_offset);
+            render_glyph_bitmap_unoptimized(glyph, glyph_offset, region, glyph_render_data->foreground);
+        }
+
+        advance(&cursor, glyph_render_data->cell_count);
+    }
+}
+
+internal void
+draw_panel_titlebar(LineRenderData* buffer_name_render_data, LineRenderData* cursor_info_render_data,
+                    Rect2D region)
+{
+    if (is_degenerated(region))
+        return;
+
+    render_quad_opaque_unoptimized(region, TITLEBAR_BACKGROUND_COLOR);
+    
+    Font* font_text       = font_from_id(FontID::TEXT_REGULAR);
+    Font* font_ui_regular = font_from_id(FontID::UI_REGULAR);
+    Font* font_ui_bold    = font_from_id(FontID::UI_BOLD);
+
+    Vector2s buffer_name_size = {};
+    Vector2s cursor_info_size = {};
+
+    buffer_name_size.y = font_ui_bold->glyph_cell_size.y;
+    cursor_info_size.y = font_ui_regular->glyph_cell_size.y;
+
+    for (u32 glyph_index = 0; glyph_index < buffer_name_render_data->glyph_count; ++glyph_index)
+        buffer_name_size.x += font_ui_bold->glyph_cell_size.x;
+
+    for (u32 glyph_index = 0; glyph_index < cursor_info_render_data->glyph_count; ++glyph_index)
+        cursor_info_size.x += font_ui_regular->glyph_cell_size.x;
+
+    u32 titlebar_size = font_ui_regular->glyph_cell_size.y *
+                        (1.0F + TITLEBAR_PADDING_TOP_PERCENTAGE + TITLEBAR_PADDING_BOTTOM_PERCENTAGE);
+    u32 titlebar_padding_side   = font_ui_regular->glyph_cell_size.x * TITLEBAR_PADDING_SIDE_PERCENTAGE;
+    u32 titlebar_padding_top    = font_ui_regular->glyph_cell_size.y * TITLEBAR_PADDING_TOP_PERCENTAGE;
+    u32 titlebar_padding_bottom = font_ui_regular->glyph_cell_size.y * TITLEBAR_PADDING_BOTTOM_PERCENTAGE;
+
+    Rect2D buffer_name_region = {};
+    buffer_name_region.min.x = region.min.x + titlebar_padding_side;
+    buffer_name_region.min.y = region.min.y + titlebar_padding_bottom;
+    buffer_name_region.max.x = buffer_name_region.min.x + buffer_name_size.x;
+    buffer_name_region.max.y = buffer_name_region.min.y + buffer_name_size.y;
+
+    Rect2D cursor_info_region = {};
+    cursor_info_region.max.x = region.max.x - titlebar_padding_side;
+    cursor_info_region.min.y = region.min.y + titlebar_padding_bottom;
+    cursor_info_region.min.x = cursor_info_region.max.x - cursor_info_size.x;
+    cursor_info_region.max.y = cursor_info_region.min.y + cursor_info_size.y;
+
+    buffer_name_region = rect_intersect(buffer_name_region, region);
+    cursor_info_region = rect_intersect(cursor_info_region, region);
+
+    draw_text_line(buffer_name_render_data, FontID::UI_BOLD, buffer_name_region);
+    draw_text_line(cursor_info_render_data, FontID::UI_REGULAR, cursor_info_region);
+}
+
+internal void
 draw_editor_frame(EditorState* state)
 {
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
     EditorBufferRenderData* render_data = &state->first_panel.content_buffer.render_data;
 
     draw_editor_buffer(render_data, layout.content_region);
+    draw_panel_titlebar(&state->first_panel.buffer_name_render_data,
+                        &state->first_panel.cursor_info_render_data,
+                        layout.titlebar_region);
 }

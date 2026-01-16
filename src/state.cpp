@@ -63,7 +63,10 @@ struct EditorPanel {
     u32            content_view_column_index;
     u32            content_view_line_index;
     bool           wrap_content_lines;
-    LineRenderData titlebar_render_data;
+
+    String buffer_name;
+    LineRenderData buffer_name_render_data;
+    LineRenderData cursor_info_render_data;
 };
 
 struct EditorState {
@@ -185,19 +188,30 @@ enum LayoutType {
 internal EditorPanelLayout
 get_panel_layout(LayoutType type, bool allow_line_wrapping, bool scrollbar_is_visible)
 {
-    Font* font = font_from_id(FontID::TEXT_REGULAR);
-    u32 cell_count_x = (g_window_bitmap.size_x / font->glyph_cell_size.x);
+    Font* font_text = font_from_id(FontID::TEXT_REGULAR);
+    u32 cell_count_x = (g_window_bitmap.size_x / font_text->glyph_cell_size.x);
 
-    u32 content_size_x = cell_count_x * font->glyph_cell_size.x;
+    u32 content_size_x = cell_count_x * font_text->glyph_cell_size.x;
     while (content_size_x + 2 * WRAP_SYMBOL_PADDING_SIZE > g_window_bitmap.size_x && cell_count_x > 0) {
         --cell_count_x;
-        content_size_x -= font->glyph_cell_size.x;
+        content_size_x -= font_text->glyph_cell_size.x;
     }
 
+    Font* font_ui = font_from_id(FontID::UI_REGULAR);
+    u32 titlebar_height = font_ui->glyph_cell_size.y *
+                          (1.0F + TITLEBAR_PADDING_TOP_PERCENTAGE + TITLEBAR_PADDING_BOTTOM_PERCENTAGE);
+
     EditorPanelLayout layout = {};
+
     layout.content_region.min.x = (g_window_bitmap.size_x - content_size_x) / 2;
-    layout.content_region.min.y = TITLEBAR_SIZE;
+    layout.content_region.min.y = titlebar_height;
     layout.content_region.max.y = g_window_bitmap.size_y;
     layout.content_region.max.x = layout.content_region.min.x + content_size_x;
+
+    layout.titlebar_region.min.x = 0;
+    layout.titlebar_region.min.y = 0;
+    layout.titlebar_region.max.x = g_window_bitmap.size_x;
+    layout.titlebar_region.max.y = titlebar_height;
+
     return layout;
 }

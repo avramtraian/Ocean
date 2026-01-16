@@ -603,13 +603,13 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     fonts_description.text_regular_name = "C:/Windows/Fonts/consola.ttf";
     fonts_description.text_bold_name    = "C:/Windows/Fonts/consolab.ttf";
     fonts_description.text_italic_name  = "C:/Windows/Fonts/consolai.ttf";
-    fonts_description.text_height       = 23;
+    fonts_description.text_height       = 24;
 
     fonts_description.ui_regular_name = "C:/Windows/Fonts/consola.ttf";
     fonts_description.ui_bold_name    = "C:/Windows/Fonts/consolab.ttf";
     fonts_description.ui_italic_name  = "C:/Windows/Fonts/consolai.ttf";
-    fonts_description.ui_height       = 30;
-    
+    fonts_description.ui_height       = 29;
+
     MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
     MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));
     MemoryArena fonts_arena   = create_arena(KiB(128), MiB(64));
@@ -633,6 +633,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         buffer->size = read.size;
     }
 
+    editor_state.first_panel.buffer_name = STRING_LIT("os_windows.cpp");
     buffer->cursor_allocated_count = 16;
     buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
     buffer->cursor_count = 1;
@@ -670,16 +671,30 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
 
         // @Cleanup: This should obviously be handled by a command and not the platform layer!
         if (g_frame_input.keys[KeyCode_Control].is_down) {
-            s32 height = g_fonts.text_regular.pixel_height;
-            if (g_frame_input.keys[KeyCode_Minus].event_count > 0)
-                height = clamp(height - 1, 1, 100);
-            if (g_frame_input.keys[KeyCode_Equal].event_count > 0)
-                height = clamp(height + 1, 1, 100);
+            if (g_frame_input.keys[KeyCode_Shift].is_down) {
+                s32 height = g_fonts.ui_regular.pixel_height;
+                if (g_frame_input.keys[KeyCode_Minus].event_count > 0)
+                    height = clamp(height - 1, 1, 100);
+                if (g_frame_input.keys[KeyCode_Equal].event_count > 0)
+                    height = clamp(height + 1, 1, 100);
 
-            if (height != g_fonts.text_regular.pixel_height) {
-                reset_memory_arena(g_arenas.fonts);
-                fonts_description.text_height = height;
-                reload_global_fonts(&fonts_description);
+                if (height != g_fonts.ui_regular.pixel_height) {
+                    reset_memory_arena(g_arenas.fonts);
+                    fonts_description.ui_height = height;
+                    reload_global_fonts(&fonts_description);
+                }
+            } else {
+                s32 height = g_fonts.text_regular.pixel_height;
+                if (g_frame_input.keys[KeyCode_Minus].event_count > 0)
+                    height = clamp(height - 1, 1, 100);
+                if (g_frame_input.keys[KeyCode_Equal].event_count > 0)
+                    height = clamp(height + 1, 1, 100);
+
+                if (height != g_fonts.text_regular.pixel_height) {
+                    reset_memory_arena(g_arenas.fonts);
+                    fonts_description.text_height = height;
+                    reload_global_fonts(&fonts_description);
+                }
             }
         }
 
