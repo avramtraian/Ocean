@@ -37,6 +37,19 @@ copy_memory(void* destination, void* source, usize size)
     }
 }
 
+internal void
+copy_memory_reversed(void* destination, void* source, usize size)
+{
+    u8* dst = (u8*)destination + size - 1;
+    u8* src = (u8*)source      + size - 1;
+    u8* dst_end = dst - size;
+    while (dst != dst_end) {
+        *dst = *src;
+        --dst;
+        --src;
+    }
+}
+
 internal int
 compare_memory(void* lhs, void* rhs, usize size)
 {

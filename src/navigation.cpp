@@ -155,17 +155,18 @@ enum class UpdateDesiredColumn {
 };
 
 internal void
-set_cursor_offset(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count, EditorCursor* cursor, usize byte_offset,
+set_cursor_offset(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+                  EditorCursor* cursor, usize new_byte_offset,
                   SyncTrail sync_trail, UpdateDesiredColumn update_desired_column)
 {
-    ASSERT(byte_offset <= buffer->size);
+    ASSERT(new_byte_offset <= buffer->size);
 
-    cursor->head_offset = byte_offset;
+    cursor->head_offset = new_byte_offset;
     if (sync_trail == SyncTrail::YES)
-        cursor->tail_offset = byte_offset;
+        cursor->tail_offset = new_byte_offset;
 
     if (update_desired_column == UpdateDesiredColumn::YES) {
-        u32 column_index = get_column_index(buffer, font, tab_size, byte_offset);
+        u32 column_index = get_column_index(buffer, font, tab_size, new_byte_offset);
         cursor->desired_column_index = column_index % visible_column_count;
     }
 }

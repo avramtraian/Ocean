@@ -149,6 +149,7 @@ internal OSWindowBitmap g_window_bitmap;
 #include "config.cpp"
 #include "state.cpp"
 #include "navigation.cpp"
+#include "insertion.cpp"
 #include "gather_render_data.cpp"
 #include "render.cpp"
 
@@ -512,7 +513,7 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
 
       case WM_CHAR: {
         int codepoint = w_param;
-        if (codepoint < ' ') return 0; // Ignore non-printable ASCII codepoints.
+        if (codepoint < ' ' || codepoint == 0x7F) return 0; // Ignore non-printable ASCII codepoints. // @Incomplete: This doesn't exclude all non-printable ASCII characters...
 
         if (g_frame_input.char_event_count < g_frame_input.max_char_event_count) {
             g_frame_input.char_events[g_frame_input.char_event_count] = codepoint;
@@ -685,6 +686,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
 
         reset_memory_arena(g_arenas.frame);
         update_navigation_system(&editor_state, &g_frame_input);
+        update_insertion_system(&editor_state, &g_frame_input);
         gather_render_data(&editor_state);
         draw_editor_frame(&editor_state);
 

@@ -131,6 +131,44 @@ struct FrameInput {
     MouseButton mouse_buttons[MouseButton_MaxEnumCount];
 };
 
+internal CursorPosition
+get_cursor_position(EditorBuffer* buffer, Font* font, u32 tab_size, usize cursor_byte_offset)
+{
+    ASSERT(cursor_byte_offset <= buffer->size);
+    CursorPosition result = {};
+
+    for (Utf8Iterator iterator = utf8_iterator(buffer->data, cursor_byte_offset);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        if (codepoint_is_valid(iterator)) {
+            if (iterator.codepoint == '\n') {
+                result.line_index++;
+                result.column_index = 0;
+            } else if (iterator.codepoint == '\t') {
+                u32 tab_render_width = tab_size - (result.column_index % tab_size);
+                result.column_index += tab_render_width;
+            } else {
+                // @Incomplete: Handle glyphs that occupy a different number of cells.
+                result.column_index++;
+            }
+        } else {
+            result.column_index += 6; // Raw byte values require 6 bytes "<0x??>" to be rendered.
+        }
+    }
+
+    return result;
+}
+
+internal CursorSelectionRange
+get_selection_range(EditorCursor* cursor)
+{
+    CursorSelectionRange result;
+    result.start_offset = min(cursor->head_offset, cursor->tail_offset);
+    result.end_offset   = max(cursor->head_offset, cursor->tail_offset);
+    return result;
+}
+
 struct EditorPanelLayout {
     Rect2D region;
     Rect2D content_region;

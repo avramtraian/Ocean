@@ -235,7 +235,7 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
             cell_offset.y = cursor.current_cell_offset.y - (font->line_height - font->glyph_cell_size.y + 1) / 2;
 
             // Render the background.
-            Rect2D cell_region = rect_offset_size(cell_offset, to_v2u(cell_size));
+            Rect2D cell_region = rect_offset_size(cell_offset, v2u(cell_size.x * glyph_render_data->cell_count, cell_size.y));
             cell_region = rect_intersect(cell_region, region);
             if (!is_degenerated(cell_region))
                 render_quad_opaque_unoptimized(cell_region, glyph_render_data->background);
@@ -290,22 +290,6 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
 
         next_line(&cursor);
     }
-
-    /*
-    Rect2D left = {};
-    left.min.x = region.min.x - WRAP_SYMBOL_PADDING_SIZE;
-    left.max.x = region.min.x;
-    left.min.y = region.min.y;
-    left.max.y = region.max.y;
-    render_quad_opaque_unoptimized(left, linear_color(255, 255, 0));
-
-    Rect2D right = {};
-    right.min.x = region.max.x;
-    right.max.x = region.max.x + WRAP_SYMBOL_PADDING_SIZE;
-    right.min.y = region.min.y;
-    right.max.y = region.max.y;
-    render_quad_opaque_unoptimized(right, linear_color(255, 255, 0));
-    */
 }
 
 internal void
