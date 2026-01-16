@@ -544,7 +544,7 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
             usize b0 = min(cursors[j].head_offset, cursors[j].tail_offset);
             usize b1 = max(cursors[j].head_offset, cursors[j].tail_offset);
 
-            if (a0 <= b0 && b0 < a1) {
+            if (a0 <= b0 && b0 <= a1) {
                 // Cursor order: A .. B
                 if (trails_are_before_heads) {
                     // We are selecting "forward". Keep B and merge A into it.
@@ -560,7 +560,7 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
                     --current_cursor_count;
                     --j;
                 }
-            } else if (b0 <= a0 && a0 < b1) {
+            } else if (b0 <= a0 && a0 <= b1) {
                 // Cursor order: B .. A
                 if (trails_are_before_heads) {
                     // We are selecting "forward". Keep A and merge B into it.

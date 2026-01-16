@@ -416,6 +416,13 @@ utf8_get_codepoint_count(String string)
 }
 
 internal inline bool
+is_linear_whitespace(u32 codepoint)
+{
+    bool result = (codepoint == ' ') || (codepoint == '\t');
+    return result;
+}
+
+internal inline bool
 is_whitespace(u32 codepoint)
 {
     bool result = (codepoint == ' ')  ||
