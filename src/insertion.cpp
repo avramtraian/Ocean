@@ -7,8 +7,31 @@ internal void
 insert_in_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
                  usize insertion_offset, void* inserted_data, usize inserted_data_size)
 {
-    ASSERT(buffer->size + inserted_data_size <= buffer->committed);
     ASSERT(insertion_offset <= buffer->size);
+
+    // Make sure the buffer has enough capacity to store the inserted data.
+    if (buffer->size + inserted_data_size > buffer->committed) {
+        usize new_committed = max(2 * buffer->committed, buffer->size + inserted_data_size);
+        new_committed = os_get_memory_page_aligned(new_committed);
+
+        if (buffer->size + inserted_data_size > buffer->reserved) {
+            usize new_reserved = max(2 * buffer->reserved, buffer->size + inserted_data_size);
+            new_reserved = os_get_memory_page_aligned(new_reserved);
+
+
+            u8* new_data = (u8*)os_reserve_memory(new_reserved);
+            os_commit_memory(new_data, new_committed);
+            copy_memory(new_data, buffer->data, buffer->size);
+
+            os_free_memory(buffer->data);
+            buffer->data = new_data;
+            buffer->committed = new_committed;
+            buffer->reserved = new_reserved;
+        } else {
+            os_commit_memory(buffer->data + buffer->committed, new_committed - buffer->committed);
+            buffer->committed = new_committed;
+        }
+    }
 
     // Insert the data into the buffer.
     copy_memory_reversed(buffer->data + insertion_offset + inserted_data_size,
