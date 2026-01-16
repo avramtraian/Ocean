@@ -185,7 +185,7 @@ enum LayoutType {
 internal EditorPanelLayout
 get_panel_layout(LayoutType type, bool allow_line_wrapping, bool scrollbar_is_visible)
 {
-    Font* font = font_from_id(FontID_Text);
+    Font* font = font_from_id(FontID::TEXT_REGULAR);
     u32 cell_count_x = (g_window_bitmap.size_x / font->glyph_cell_size.x);
 
     u32 content_size_x = cell_count_x * font->glyph_cell_size.x;

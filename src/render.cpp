@@ -217,7 +217,7 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
 
     render_quad_opaque_unoptimized(region, BACKGROUND_COLOR);
 
-    Font* font = font_from_id(FontID_Text);
+    Font* font = font_from_id(FontID::TEXT_REGULAR);
     Vector2s cursor_start_offset = v2s(-render_data->first_column_index * font->glyph_cell_size.x, 0);
     TextCursor cursor = create_text_cursor(font, region, cursor_start_offset);
 

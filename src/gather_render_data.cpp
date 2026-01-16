@@ -45,7 +45,7 @@ gather_panel_render_data(EditorPanel* panel)
     EditorBuffer* content_buffer = &panel->content_buffer;
     EditorBufferRenderData* render_data = &content_buffer->render_data;
     ZERO_STRUCT_POINTER(render_data);
-    Font* font = font_from_id(FontID_Text);
+    Font* font = font_from_id(FontID::TEXT_REGULAR);
 
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
     u32 view_cell_count_x = (rect_size_x(layout.content_region)) / font->glyph_cell_size.x;

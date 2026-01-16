@@ -200,44 +200,49 @@ load_font_freetype(Font* font, char* font_file_name, u32 pixel_height, MemoryAre
 }
 
 struct GlobalFonts {
-    Font text;
-    Font ui;
-    Font ui_small;
-    Font ui_big;
+    Font text_regular;
+    Font text_bold;
+    Font text_italic;
+    Font ui_regular;
+    Font ui_bold;
+    Font ui_italic;
 };
 
 internal GlobalFonts g_fonts;
 
-enum FontID : u8 {
-    FontID_Text,
-    FontID_UI,
-    FontID_UISmall,
-    FontID_UIBig,
-    FontID_MaxEnumCount,
+enum class FontID : u8 {
+    TEXT_REGULAR,
+    TEXT_BOLD,
+    TEXT_ITALIC,
+    UI_REGULAR,
+    UI_BOLD,
+    UI_ITALIC,
 };
 
 inline Font*
 font_from_id(FontID font_id)
 {
     switch (font_id) {
-      case FontID_Text:    return &g_fonts.text;
-      case FontID_UI:      return &g_fonts.ui;
-      case FontID_UISmall: return &g_fonts.ui_small;
-      case FontID_UIBig:   return &g_fonts.ui_big;
-      default:             return NULL; // ID is invalid.
+      case FontID::TEXT_REGULAR: return &g_fonts.text_regular;
+      case FontID::TEXT_BOLD:    return &g_fonts.text_bold;
+      case FontID::TEXT_ITALIC:  return &g_fonts.text_italic;
+      case FontID::UI_REGULAR:   return &g_fonts.ui_regular;
+      case FontID::UI_BOLD:      return &g_fonts.ui_bold;
+      case FontID::UI_ITALIC:    return &g_fonts.ui_italic;
+      default:                   return NULL; // ID is invalid.
     }
 }
 
 struct GlobalFontsDescription {
-    // @Robustness: Use custom String type instead of null-terminated.
-    char* text_name;
-    char* ui_name;
-    char* ui_small_name;
-    char* ui_big_name;
-    u32 text_pixel_height;
-    u32 ui_pixel_height;
-    u32 ui_small_pixel_height;
-    u32 ui_big_pixel_height;
+    char* text_regular_name; // @Robustness: Use custom String type instead of null-terminated.
+    char* text_bold_name; // @Robustness: Use custom String type instead of null-terminated.
+    char* text_italic_name; // @Robustness: Use custom String type instead of null-terminated.
+    char* ui_regular_name; // @Robustness: Use custom String type instead of null-terminated.
+    char* ui_bold_name; // @Robustness: Use custom String type instead of null-terminated.
+    char* ui_italic_name; // @Robustness: Use custom String type instead of null-terminated.
+
+    u32 text_height;
+    u32 ui_height;
 };
 
 internal void
@@ -246,15 +251,13 @@ reload_global_fonts(GlobalFontsDescription* description)
     MemoryArena* arena = g_arenas.fonts;
     reset_memory_arena(arena);
 
-    load_font_stb(&g_fonts.text,     description->text_name,     description->text_pixel_height,     arena);
-    load_font_stb(&g_fonts.ui,       description->ui_name,       description->ui_pixel_height,       arena);
-    load_font_stb(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
-    load_font_stb(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
+    load_font_stb(&g_fonts.text_regular, description->text_regular_name, description->text_height, arena);
+    load_font_stb(&g_fonts.text_bold,    description->text_bold_name,    description->text_height, arena);
+    load_font_stb(&g_fonts.text_italic,  description->text_italic_name,  description->text_height, arena);
 
-    // load_font_freetype(&g_fonts.text,     description->text_name,     description->text_pixel_height,     arena);
-    // load_font_freetype(&g_fonts.ui,       description->ui_name,       description->ui_pixel_height,       arena);
-    // load_font_freetype(&g_fonts.ui_small, description->ui_small_name, description->ui_small_pixel_height, arena);
-    // load_font_freetype(&g_fonts.ui_big,   description->ui_big_name,   description->ui_big_pixel_height,   arena);
+    load_font_stb(&g_fonts.ui_regular, description->ui_regular_name, description->ui_height, arena);
+    load_font_stb(&g_fonts.ui_bold,    description->ui_bold_name,    description->ui_height, arena);
+    load_font_stb(&g_fonts.ui_italic,  description->ui_italic_name,  description->ui_height, arena);
 }
 
 internal Vector2u

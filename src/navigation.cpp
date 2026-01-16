@@ -597,7 +597,7 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
 {
     EditorPanel* panel = state->active_panel;
     EditorBuffer* buffer = &state->active_panel->content_buffer;
-    Font* text_font = font_from_id(FontID_Text);
+    Font* text_font = font_from_id(FontID::TEXT_REGULAR);
 
     u32 view_column_count = UINT32_MAX;
     if (panel->wrap_content_lines) {

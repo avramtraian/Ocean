@@ -85,7 +85,7 @@ update_insertion_system(EditorState* state, FrameInput* frame_input)
 {
     EditorPanel* panel = state->active_panel;
     EditorBuffer* buffer = &panel->content_buffer;
-    Font* font = font_from_id(FontID_Text);
+    Font* font = font_from_id(FontID::TEXT_REGULAR);
 
     u32 view_column_count = UINT32_MAX;
     if (panel->wrap_content_lines) {

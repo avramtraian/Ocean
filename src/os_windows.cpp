@@ -599,18 +599,16 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     HDC device_context = GetDC(g_window_handle);
 
     GlobalFontsDescription fonts_description = {};
-    // fonts_description.text_name     = "../DroidSansMono.ttf";
-    // fonts_description.ui_name       = "../DroidSansMono.ttf";
-    // fonts_description.ui_small_name = "../DroidSansMono.ttf";
-    // fonts_description.ui_big_name   = "../DroidSansMono.ttf";
-    fonts_description.text_name     = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.ui_name       = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.ui_small_name = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.ui_big_name   = "C:/Windows/Fonts/consola.ttf";
-    fonts_description.text_pixel_height     = 23;
-    fonts_description.ui_pixel_height       = 25;
-    fonts_description.ui_small_pixel_height = 15;
-    fonts_description.ui_big_pixel_height   = 30;
+
+    fonts_description.text_regular_name = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.text_bold_name    = "C:/Windows/Fonts/consolab.ttf";
+    fonts_description.text_italic_name  = "C:/Windows/Fonts/consolai.ttf";
+    fonts_description.text_height       = 23;
+
+    fonts_description.ui_regular_name = "C:/Windows/Fonts/consola.ttf";
+    fonts_description.ui_bold_name    = "C:/Windows/Fonts/consolab.ttf";
+    fonts_description.ui_italic_name  = "C:/Windows/Fonts/consolai.ttf";
+    fonts_description.ui_height       = 30;
     
     MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
     MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));
@@ -670,16 +668,17 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
 
         win32_query_frame_input();
 
+        // @Cleanup: This should obviously be handled by a command and not the platform layer!
         if (g_frame_input.keys[KeyCode_Control].is_down) {
-            s32 pixel_height = g_fonts.text.pixel_height;
+            s32 height = g_fonts.text_regular.pixel_height;
             if (g_frame_input.keys[KeyCode_Minus].event_count > 0)
-                pixel_height = clamp(pixel_height - 1, 1, 100);
+                height = clamp(height - 1, 1, 100);
             if (g_frame_input.keys[KeyCode_Equal].event_count > 0)
-                pixel_height = clamp(pixel_height + 1, 1, 100);
+                height = clamp(height + 1, 1, 100);
 
-            if (pixel_height != g_fonts.text.pixel_height) {
+            if (height != g_fonts.text_regular.pixel_height) {
                 reset_memory_arena(g_arenas.fonts);
-                fonts_description.text_pixel_height = pixel_height;
+                fonts_description.text_height = height;
                 reload_global_fonts(&fonts_description);
             }
         }
