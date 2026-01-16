@@ -47,6 +47,7 @@ remove_from_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_c
     copy_memory(buffer->data + remove_offset,
                 buffer->data + remove_offset + removed_data_size,
                 buffer->size - (remove_offset + removed_data_size));
+    buffer->size -= removed_data_size;
 
     // Update cursor offsets.
     for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
