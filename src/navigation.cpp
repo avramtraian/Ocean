@@ -600,25 +600,32 @@ spawn_cursor_at_offset(EditorBuffer* buffer, usize cursor_byte_offset, u32 desir
 internal void
 destroy_extra_cursors(EditorBuffer* buffer)
 {
+    if (buffer->cursor_count == 0)
+        return;
+
     // Destroy all but the first cursor. Note that there is nothing special to the first cursor, but
     // this makes the implementation trivial and the user usually doesn't care about which cursor
     // remains alive (hopefully?).
     buffer->cursor_count = 1;
 }
 
-internal void
-update_navigation_system(EditorState* state, FrameInput* frame_input)
-{
-    EditorPanel* panel = state->active_panel;
-    EditorBuffer* buffer = &state->active_panel->content_buffer;
-    Font* text_font = font_from_id(FontID::TEXT_REGULAR);
+struct NavigationSystem {
+    EditorBuffer* buffer;
+    u32 view_column_count;
+    Font* font;
+    u32 tab_size;
 
-    u32 view_column_count = UINT32_MAX;
-    if (panel->wrap_content_lines) {
-        EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-        view_column_count = rect_size_x(layout.content_region) / text_font->glyph_cell_size.x;
-    }
-    ASSERT(view_column_count > 0);
+    u32* view_column_index; // If valid, it will contain the updated value.
+    u32* view_line_index; // If valid, it will contain the updated value.
+};
+
+internal void
+update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
+{
+    EditorBuffer* buffer = system->buffer;
+    u32 view_column_count = system->view_column_count;
+    Font* font = system->font;
+    u32 tab_size = system->tab_size;
 
     for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
         EditorCursor* cursor = buffer->cursors + cursor_index;
@@ -644,7 +651,7 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
         for (u32 i = 0; i < frame_input->keys[KeyCode_Right].event_count; ++i) {
             for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                 EditorCursor* cursor = cursors + cursor_index;
-                move_cursor_right(buffer, text_font, TAB_SIZE, view_column_count,
+                move_cursor_right(buffer, font, tab_size, view_column_count,
                                   cursor, cursor_is_selecting, cursor_consume_whole_word);
             }
         }
@@ -653,7 +660,7 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
         for (u32 i = 0; i < frame_input->keys[KeyCode_Left].event_count; ++i) {
             for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                 EditorCursor* cursor = cursors + cursor_index;
-                move_cursor_left(buffer, text_font, TAB_SIZE, view_column_count,
+                move_cursor_left(buffer, font, tab_size, view_column_count,
                                  cursor, cursor_is_selecting, cursor_consume_whole_word);
             }
         }
@@ -664,7 +671,7 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
                 for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                     EditorCursor* cursor = cursors + cursor_index;
                     // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                    move_cursor_down(buffer, text_font, TAB_SIZE, view_column_count, cursor, cursor_is_selecting);
+                    move_cursor_down(buffer, font, tab_size, view_column_count, cursor, cursor_is_selecting);
                 }
             }
 
@@ -673,7 +680,7 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
                 for (u32 cursor_index = 0; cursor_index < cursor_count; ++cursor_index) {
                     EditorCursor* cursor = cursors + cursor_index;
                     // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                    move_cursor_up(buffer, text_font, TAB_SIZE, view_column_count, cursor, cursor_is_selecting);
+                    move_cursor_up(buffer, font, tab_size, view_column_count, cursor, cursor_is_selecting);
                 }
             }
         }
@@ -681,20 +688,18 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
 
     // Spawn new cursors:
     {
-        if (frame_input->keys[KeyCode_Control].is_down &&
+        if (buffer->cursor_count > 0 &&
+            frame_input->keys[KeyCode_Control].is_down &&
             frame_input->keys[KeyCode_Alt].is_down)
         {
             for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
                 u32 src_cursor_index = buffer->cursor_count - 1;
                 EditorCursor* src_cursor = buffer->cursors + src_cursor_index;
 
-                // Duplicate the source cursor.
                 u32 new_cursor_index = spawn_cursor_at_offset(buffer, src_cursor->head_offset, 
                                                               src_cursor->desired_column_index);
                 EditorCursor* new_cursor = buffer->cursors + new_cursor_index;
-
-                // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
-                move_cursor_down(buffer, text_font, TAB_SIZE, view_column_count, new_cursor, IsSelecting::NO);
+                move_cursor_down(buffer, font, tab_size, view_column_count, new_cursor, IsSelecting::NO);
             }
         }
     }
@@ -712,19 +717,14 @@ update_navigation_system(EditorState* state, FrameInput* frame_input)
     }
 
     // Move buffer view:
-    if (frame_input->keys[KeyCode_Control].is_down &&
+    if (system->view_line_index != NULL &&
+        frame_input->keys[KeyCode_Control].is_down &&
         !frame_input->keys[KeyCode_Alt].is_down)
     {
-        for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
-            state->active_panel->content_view_line_index = clamp((s32)state->active_panel->content_view_line_index + 1,
-                                                                 (s32)0,
-                                                                 (s32)buffer_line_count - 2);
-        }
-
-        for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i) {
-            state->active_panel->content_view_line_index = clamp((s32)state->active_panel->content_view_line_index - 1,
-                                                                 (s32)0,
-                                                                 (s32)buffer_line_count - 2);
-        }
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i)
+            *system->view_line_index = clamp((s32)*system->view_line_index + 1, (s32)0, (s32)buffer_line_count - 2);
+        
+        for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i)
+            *system->view_line_index = clamp((s32)*system->view_line_index - 1, (s32)0, (s32)buffer_line_count - 2);
     }
 }

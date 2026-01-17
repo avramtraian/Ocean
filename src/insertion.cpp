@@ -104,19 +104,21 @@ delete_cursor_selection_range(EditorBuffer* buffer, Font* font, u32 tab_size, u3
     }
 }
 
-internal void
-update_insertion_system(EditorState* state, FrameInput* frame_input)
-{
-    EditorPanel* panel = state->active_panel;
-    EditorBuffer* buffer = &panel->content_buffer;
-    Font* font = font_from_id(FontID::TEXT_REGULAR);
+struct InsertionSystem {
+    EditorBuffer* buffer;
+    u32 view_column_count;
+    Font* font;
+    u32 tab_size;
+    bool allow_new_lines;
+};
 
-    u32 view_column_count = UINT32_MAX;
-    if (panel->wrap_content_lines) {
-        EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-        view_column_count = rect_size_x(layout.content_region) / font->glyph_cell_size.x;
-    }
-    ASSERT(view_column_count > 0);
+internal void
+update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
+{
+    EditorBuffer* buffer            = system->buffer;
+    u32           view_column_count = system->view_column_count;
+    Font*         font              = system->font;
+    u32           tab_size          = system->tab_size;
 
     for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
         EditorCursor* cursor = buffer->cursors + cursor_index;
@@ -133,10 +135,12 @@ update_insertion_system(EditorState* state, FrameInput* frame_input)
         }
 
         // Handle new-line input:
-        for (u32 i = 0; i < frame_input->keys[KeyCode_Enter].event_count; ++i) {
-            delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
-            insert_in_buffer(buffer, font, TAB_SIZE, view_column_count,
-                             cursor->head_offset, "\n", sizeof('\n'));
+        if (system->allow_new_lines) {
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Enter].event_count; ++i) {
+                delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
+                insert_in_buffer(buffer, font, TAB_SIZE, view_column_count,
+                                 cursor->head_offset, "\n", sizeof('\n'));
+            }
         }
 
         ConsumeWholeWord delete_whole_word = frame_input->keys[KeyCode_Control].is_down

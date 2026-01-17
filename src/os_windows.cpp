@@ -699,8 +699,40 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         }
 
         reset_memory_arena(g_arenas.frame);
-        update_navigation_system(&editor_state, &g_frame_input);
-        update_insertion_system(&editor_state, &g_frame_input);
+
+
+        u32 view_column_count = 0;
+        if (editor_state.first_panel.wrap_content_lines) {
+            EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
+            view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
+        }
+        if (view_column_count == 0)
+            view_column_count = UINT32_MAX;
+
+        {
+            NavigationSystem navigation = {};
+            navigation.buffer = &editor_state.first_panel.content_buffer;
+            navigation.view_column_count = view_column_count;
+            navigation.font = font_from_id(FontID::TEXT_REGULAR);
+            navigation.tab_size = TAB_SIZE;
+            navigation.view_line_index   = &editor_state.first_panel.content_view_line_index;
+            navigation.view_column_index = &editor_state.first_panel.content_view_column_index;
+
+            update_navigation_system(&navigation, &g_frame_input);
+        }
+
+        {
+            InsertionSystem insertion = {};
+            insertion.buffer = &editor_state.first_panel.content_buffer;
+            insertion.view_column_count = view_column_count;
+            insertion.font = font_from_id(FontID::TEXT_REGULAR);
+            insertion.tab_size = TAB_SIZE;
+            insertion.allow_new_lines = true;
+
+            update_insertion_system(&insertion, &g_frame_input);
+        }
+
+
         gather_render_data(&editor_state);
         draw_editor_frame(&editor_state);
 
