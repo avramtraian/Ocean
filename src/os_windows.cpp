@@ -152,6 +152,7 @@ internal OSWindowBitmap g_window_bitmap;
 #include "insertion.cpp"
 #include "gather_render_data.cpp"
 #include "render.cpp"
+#include "update.cpp"
 
 //
 // IMPLEMENTATION OF THE PLATFORM-AGNOSTIC OS INTERFACE:
@@ -643,6 +644,14 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     buffer->cursors[0].tail_offset = 0;
     buffer->cursors[0].head_offset = 25;
 
+    editor_state.console_buffer.cursor_allocated_count = 16;
+    editor_state.console_buffer.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
+    editor_state.console_buffer.cursor_count = 1;
+    editor_state.console_buffer.cursors[0].head_offset = 0;
+    editor_state.console_buffer.cursors[0].tail_offset = 0;
+    editor_state.console_command_name = STRING_LIT("save-file-as");
+    editor_state.console_message = STRING_LIT("Copied buffer.");
+
     g_window_should_close = false;
     while (!g_window_should_close) {
         // Process the message queue.
@@ -707,39 +716,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
 
         reset_memory_arena(g_arenas.frame);
 
-
-        u32 view_column_count = 0;
-        if (editor_state.first_panel.wrap_content_lines) {
-            EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-            view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
-        }
-        if (view_column_count == 0)
-            view_column_count = UINT32_MAX;
-
-        {
-            NavigationSystem navigation = {};
-            navigation.buffer = &editor_state.first_panel.content_buffer;
-            navigation.view_column_count = view_column_count;
-            navigation.font = font_from_id(FontID::TEXT_REGULAR);
-            navigation.tab_size = TAB_SIZE;
-            navigation.view_line_index   = &editor_state.first_panel.content_view_line_index;
-            navigation.view_column_index = &editor_state.first_panel.content_view_column_index;
-
-            update_navigation_system(&navigation, &g_frame_input);
-        }
-
-        {
-            InsertionSystem insertion = {};
-            insertion.buffer = &editor_state.first_panel.content_buffer;
-            insertion.view_column_count = view_column_count;
-            insertion.font = font_from_id(FontID::TEXT_REGULAR);
-            insertion.tab_size = TAB_SIZE;
-            insertion.allow_new_lines = true;
-
-            update_insertion_system(&insertion, &g_frame_input);
-        }
-
-
+        update_editor(&editor_state, &g_frame_input);
         gather_render_data(&editor_state);
         draw_editor_frame(&editor_state);
 

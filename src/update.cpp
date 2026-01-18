@@ -1,0 +1,92 @@
+/*
+ * Copyright (c) 2025-2026 Traian Avram. All rights reserved.
+ * This file is part of my personal text editor and is distributed under the MIT license.
+ */
+
+internal void
+update_editor_panel(EditorState* state, FrameInput* frame_input)
+{
+    EditorPanel* panel = state->active_panel;
+
+    if (frame_input->keys[KeyCode_Control].is_down &&
+        frame_input->keys[KeyCode_Tilde].was_pressed_this_frame)
+    {
+        state->console_state = ConsoleState::INSERT_COMMAND_NAME;
+    }
+
+    u32 view_column_count = 0;
+    if (panel->wrap_content_lines) {
+        EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
+        view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
+    }
+    if (view_column_count == 0)
+        view_column_count = UINT32_MAX; // This effecively disables any line wrapping.
+
+
+    NavigationSystem navigation = {};
+    navigation.buffer = &panel->content_buffer;
+    navigation.view_column_count = view_column_count;
+    navigation.font = font_from_id(FontID::TEXT_REGULAR);
+    navigation.tab_size = TAB_SIZE;
+    navigation.view_line_index   = &panel->content_view_line_index;
+    navigation.view_column_index = &panel->content_view_column_index;
+
+    InsertionSystem insertion = {};
+    insertion.buffer = &panel->content_buffer;
+    insertion.view_column_count = view_column_count;
+    insertion.font = font_from_id(FontID::TEXT_REGULAR);
+    insertion.tab_size = TAB_SIZE;
+    insertion.allow_new_lines = true;
+
+    update_navigation_system(&navigation, frame_input);
+    update_insertion_system(&insertion, frame_input);
+}
+
+internal void
+update_editor_console(EditorState* state, FrameInput* frame_input)
+{
+    if (frame_input->keys[KeyCode_Escape].was_pressed_this_frame) {
+        state->console_state = ConsoleState::SHOW_MESSAGE;
+        return;
+    }
+
+    if (state->console_state == ConsoleState::INSERT_COMMAND_NAME) {
+        if (frame_input->keys[KeyCode_Enter].was_pressed_this_frame) {
+            state->console_state = ConsoleState::INSERT_COMMAND_ARGUMENTS;
+            
+            EditorBuffer* buffer = &state->console_buffer;
+            buffer->size = 0;
+            buffer->cursor_count = 1;
+            buffer->cursors[0].head_offset = 0;
+            buffer->cursors[0].tail_offset = 0;
+        }
+    }
+
+    NavigationSystem navigation = {};
+    navigation.buffer = &state->console_buffer;
+    navigation.view_column_count = UINT32_MAX;
+    navigation.font = font_from_id(FontID::TEXT_REGULAR);
+    navigation.tab_size = TAB_SIZE;
+
+    InsertionSystem insertion = {};
+    insertion.buffer = &state->console_buffer;
+    insertion.view_column_count = UINT32_MAX;
+    insertion.font = font_from_id(FontID::TEXT_REGULAR);
+    insertion.tab_size = TAB_SIZE;
+    insertion.allow_new_lines = false;
+
+    update_navigation_system(&navigation, frame_input);
+    update_insertion_system(&insertion, frame_input);
+}
+
+internal void
+update_editor(EditorState* state, FrameInput* frame_input)
+{
+    if (state->console_state == ConsoleState::SHOW_MESSAGE) {
+        // Redirect the input to the active panel.
+        update_editor_panel(state, frame_input);
+    } else {
+        // Redirect the input to the console system.
+        update_editor_console(state, frame_input);
+    }
+}

@@ -35,37 +35,33 @@ push_glyph_to_line(LineRenderData* line_render_data)
     auto* glyph = PUSH_STRUCT(g_arenas.frame, GlyphRenderData);
     if (line_render_data->glyph_count == 0)
         line_render_data->glyphs = glyph;
+
+    // NOTE(Traian): This assert is triggered when memory is allocated from the 'g_arenas.frame' in between
+    // calls to this function, which will break the continuity of the glyphs in memory.
+    ASSERT((uintptr)glyph == (uintptr)(line_render_data->glyphs + line_render_data->glyph_count));
     line_render_data->glyph_count++;
     return glyph;
 }
 
 internal void
-gather_panel_render_data(EditorPanel* panel)
+gather_buffer_render_data(EditorBuffer* buffer, Font* font,
+                          u32 view_cell_count_x, u32 view_cell_count_y,
+                          u32 view_line_index, u32 view_column_index)
 {
-    EditorBuffer* content_buffer = &panel->content_buffer;
-    EditorBufferRenderData* render_data = &content_buffer->render_data;
+    EditorBufferRenderData* render_data = &buffer->render_data;
     ZERO_STRUCT_POINTER(render_data);
-    Font* font = font_from_id(FontID::TEXT_REGULAR);
-
-    EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-    u32 view_cell_count_x = (rect_size_x(layout.content_region)) / font->glyph_cell_size.x;
-    u32 view_cell_count_y = (rect_size_y(layout.content_region) + font->line_gap) / font->line_height;
 
     if (view_cell_count_x > 0 && view_cell_count_y > 0) {
-        render_data->first_column_index = panel->content_view_column_index;
+        render_data->first_column_index = view_column_index;
         render_data->line_count = view_cell_count_y + 2;
         render_data->lines = PUSH_ARRAY(g_arenas.frame, LineRenderData, render_data->line_count);
 
         u32 cell_index_x = 0;
         u32 cell_index_y = 0;
-        
-        u32 max_unwrapped_cell_count = view_cell_count_x;
-        if (!panel->wrap_content_lines)
-            max_unwrapped_cell_count = UINT32_MAX;       
 
-        usize view_byte_offset = get_line_offset_from_index(content_buffer, panel->content_view_line_index);
-        for (Utf8Iterator iterator = utf8_iterator(content_buffer->data + view_byte_offset,
-                                                   content_buffer->size - view_byte_offset);
+        usize view_byte_offset = get_line_offset_from_index(buffer, view_line_index);
+        Utf8Iterator iterator = utf8_iterator(buffer->data + view_byte_offset, buffer->size - view_byte_offset);
+        for (;
              is_in_range(iterator) && cell_index_y < render_data->line_count;
              advance(&iterator))
         {
@@ -74,12 +70,12 @@ gather_panel_render_data(EditorPanel* panel)
             bool is_inside_selection_range = false;
             bool should_render_cursor      = false;
             usize codepoint_byte_offset = view_byte_offset + iterator.offset;
-            for (u32 cursor_index = 0; cursor_index < content_buffer->cursor_count; ++cursor_index) {
-                CursorSelectionRange range = get_selection_range(content_buffer->cursors + cursor_index);
+            for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
+                CursorSelectionRange range = get_selection_range(buffer->cursors + cursor_index);
                 if (range.start_offset <= codepoint_byte_offset && codepoint_byte_offset < range.end_offset)
                     is_inside_selection_range = true;
 
-                if (content_buffer->cursors[cursor_index].head_offset == codepoint_byte_offset)
+                if (buffer->cursors[cursor_index].head_offset == codepoint_byte_offset)
                     should_render_cursor = true;
             }
 
@@ -117,9 +113,9 @@ gather_panel_render_data(EditorPanel* panel)
             }
 
             // Wrap long lines. NOTE(Traian): When the wrap lines feature is not enabled by the user, the
-            // 'max_unwrapped_cell_count' is 'UINT32_MAX' and thus the following if-condition never passes,
+            // 'view_cell_count_x' is 'UINT32_MAX' and thus the following if-condition never passes,
             // essentially disabling wrapped lines without any extra logic. (15th January 2026)
-            if (cell_index_x + glyph_cell_count > max_unwrapped_cell_count) {
+            if (cell_index_x + glyph_cell_count > view_cell_count_x) {
                 render_data->lines[cell_index_y].has_end_wrap_symbol = true;
                 cell_index_x = 0;
                 ++cell_index_y;
@@ -141,6 +137,30 @@ gather_panel_render_data(EditorPanel* panel)
 
             cell_index_x += glyph_cell_count;
         }
+
+        if (!is_in_range(iterator)) {
+            // Since the iterator is out of range, it means that we rendered at least the last line of
+            // the buffer.
+
+            bool cursor_is_at_end_of_buffer = false;
+            for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
+                if (buffer->cursors[cursor_index].head_offset == buffer->size) {
+                    cursor_is_at_end_of_buffer = true;
+                    break;
+                }
+            }
+
+            if (cursor_is_at_end_of_buffer) {
+                // Insert a "fake" glyph at the end of the last rendered line with the 'HasCursor' flag
+                // set in order to make sure the cursor will actually be rendered.
+                GlyphRenderData* glyph = push_glyph_to_line(render_data->lines + cell_index_y);
+                glyph->codepoint = 0;
+                glyph->cell_count = 1;
+                glyph->foreground = FOREGROUND_COLOR;
+                glyph->background = BACKGROUND_COLOR;
+                glyph->flags = GlyphRenderFlag_HasCursor;
+            }
+        }
     }
 }
 
@@ -156,6 +176,69 @@ generate_line_render_data(LineRenderData* render_data, String text, LinearColor 
         glyph->cell_count = 1; // @Incomplete: Add support for glyphs that require multiple cells.
         glyph->foreground = foreground;
         glyph->background = background;
+    }
+}
+
+internal void
+generate_line_render_data(LineRenderData* render_data, EditorBuffer* buffer, Font* font, u32 tab_size,
+                          LinearColor foreground, LinearColor background, LinearColor selected_background)
+{
+    ASSERT(tab_size > 0);
+    
+    u32 current_column_index = 0;
+    for (Utf8Iterator iterator = utf8_iterator(buffer->data, buffer->size);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        bool is_inside_selection_range = false;
+        bool should_render_cursor = false;
+        for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
+            EditorCursor* cursor = buffer->cursors + cursor_index;
+            usize start_offset = min(cursor->head_offset, cursor->tail_offset);
+            usize end_offset   = max(cursor->head_offset, cursor->tail_offset);
+
+            if (start_offset <= iterator.offset && iterator.offset < end_offset)
+                is_inside_selection_range = true;
+
+            if (buffer->cursors[cursor_index].head_offset == iterator.offset)
+                should_render_cursor = true;
+        }
+
+        u32 glyph_cell_count = 6; // "<0x??>" requires 6 glyphs to be rendered.
+        if (codepoint_is_valid(iterator)) {
+            glyph_cell_count = 1; // @Incomplete: Add support for glyphs that require multiple cells.
+
+            if (iterator.codepoint == '\t')
+                glyph_cell_count = tab_size - (current_column_index % tab_size);
+        }
+
+        GlyphRenderData* glyph = push_glyph_to_line(render_data);
+        glyph->codepoint = codepoint_or_byte_value(iterator);
+        glyph->cell_count = glyph_cell_count;
+        glyph->foreground = foreground;
+        glyph->background = is_inside_selection_range ? selected_background : background;
+
+        if (!codepoint_is_valid(iterator)) glyph->flags |= GlyphRenderFlag_RawByte;
+        if (should_render_cursor)          glyph->flags |= GlyphRenderFlag_HasCursor;
+
+        current_column_index += glyph_cell_count;
+    }
+
+    bool cursor_is_at_end_of_buffer = false;
+    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
+        if (buffer->cursors[cursor_index].head_offset == buffer->size) {
+            cursor_is_at_end_of_buffer = true;
+            break;
+        }
+    }
+
+    if (cursor_is_at_end_of_buffer) {
+        GlyphRenderData* glyph = push_glyph_to_line(render_data);
+        glyph->codepoint = 0;
+        glyph->cell_count = 1;
+        glyph->foreground = foreground;
+        glyph->background = background;
+        glyph->flags = GlyphRenderFlag_HasCursor;
     }
 }
 
@@ -259,8 +342,61 @@ gather_titlebar_render_data(EditorPanel* panel)
 }
 
 internal void
+gather_console_render_data_show_message(EditorState* state)
+{
+    LineRenderData* render_data = &state->console_render_data;
+    generate_line_render_data(render_data, state->console_message, CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
+}
+
+internal void
+gather_console_render_data_insert_command_name(EditorState* state)
+{
+    LineRenderData* render_data = &state->console_render_data;
+    generate_line_render_data(render_data, &state->console_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+                              CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR, CONSOLE_BACKGROUND_SELECTED_COLOR);
+}
+
+internal void
+gather_console_render_data_insert_command_arguments(EditorState* state)
+{
+    LineRenderData* render_data = &state->console_render_data;
+    EditorBuffer* buffer = &state->console_buffer;
+
+    // Generate the render data for the command name.
+    generate_line_render_data(render_data, state->console_command_name, CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
+    generate_line_render_data(render_data, STRING_LIT(": "),            CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
+
+    // Generate the render data for the command arguments written by the user.
+    generate_line_render_data(render_data, &state->console_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+                              CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR, CONSOLE_BACKGROUND_SELECTED_COLOR);
+}
+
+internal void
+gather_console_render_data(EditorState* state)
+{
+    LineRenderData* render_data = &state->console_render_data;
+    ZERO_STRUCT_POINTER(render_data);
+
+    switch (state->console_state) {
+      case ConsoleState::SHOW_MESSAGE:             gather_console_render_data_show_message(state); break;
+      case ConsoleState::INSERT_COMMAND_NAME:      gather_console_render_data_insert_command_name(state); break;
+      case ConsoleState::INSERT_COMMAND_ARGUMENTS: gather_console_render_data_insert_command_arguments(state); break;
+    }
+}
+
+internal void
 gather_render_data(EditorState* state)
 {
-    gather_panel_render_data(&state->first_panel);
+    Font* font_text = font_from_id(FontID::TEXT_REGULAR);
+    EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
+    u32 view_cell_count_x = (rect_size_x(layout.content_region)) / font_text->glyph_cell_size.x;
+    u32 view_cell_count_y = (rect_size_y(layout.content_region) + font_text->line_gap) / font_text->line_height;
+    
+    EditorPanel* panel = &state->first_panel;
+    gather_buffer_render_data(&panel->content_buffer, font_text,
+                              view_cell_count_x, view_cell_count_y,
+                              panel->content_view_line_index, panel->content_view_column_index);
+
     gather_titlebar_render_data(&state->first_panel);
+    gather_console_render_data(state);
 }

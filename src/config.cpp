@@ -11,10 +11,15 @@ constant s32 TAB_SIZE                 = 4;
 constant f32 CURSOR_SIZE_PERCENTAGE_X = 0.2F;
 constant f32 CURSOR_SIZE_PERCENTAGE_Y = 1.3F;
 
-// Relative to the font glyph cell size.
-constant f32 TITLEBAR_PADDING_SIDE_PERCENTAGE   = 0.5F;
-constant f32 TITLEBAR_PADDING_TOP_PERCENTAGE    = 0.2F;
-constant f32 TITLEBAR_PADDING_BOTTOM_PERCENTAGE = 0.1F;
+// Relative to the 'ui-regular' font glyph cell size.
+constant f32 TITLEBAR_PADDING_SIDE_PERCENTAGE   = 1.5F;
+constant f32 TITLEBAR_PADDING_TOP_PERCENTAGE    = 0.12F;
+constant f32 TITLEBAR_PADDING_BOTTOM_PERCENTAGE = 0.04F;
+
+// Relative to the 'text-regular' font glyph cell size.
+constant f32 CONSOLE_PADDING_SIDE_PERCENTAGE   = 0.1F;
+constant f32 CONSOLE_PADDING_TOP_PERCENTAGE    = 0.25F;
+constant f32 CONSOLE_PADDING_BOTTOM_PERCENTAGE = 0.15F;
 
 constant f32 START_WRAP_SYMBOL_SIZE_PERCENTAGE_Y = 0.5F;
 constant f32 END_WRAP_SYMBOL_SIZE_PERCENTAGE_Y   = 0.5F;
@@ -32,3 +37,8 @@ const LinearColor SCROLLBAR_FOREGROUND_COLOR = linear_color(150, 150, 150);
 const LinearColor SCROLLBAR_HOVERED_COLOR    = linear_color(140, 140, 140);
 const LinearColor SCROLLBAR_IN_USE_COLOR     = linear_color(120, 120, 120);
 const LinearColor CURSOR_COLOR               = linear_color(220, 220, 220);
+
+const LinearColor CONSOLE_FOREGROUND_COLOR          = linear_color(200, 200, 200);
+const LinearColor CONSOLE_BACKGROUND_COLOR          = BACKGROUND_COLOR;
+const LinearColor CONSOLE_BACKGROUND_SELECTED_COLOR = BACKGROUND_SELECTED_COLOR;
+const LinearColor CONSOLE_CURSOR_COLOR              = CURSOR_COLOR;

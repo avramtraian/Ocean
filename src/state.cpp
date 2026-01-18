@@ -69,10 +69,23 @@ struct EditorPanel {
     LineRenderData cursor_info_render_data;
 };
 
+enum class ConsoleState {
+    SHOW_MESSAGE,
+    INSERT_COMMAND_NAME,
+    INSERT_COMMAND_ARGUMENTS,
+};
+
 struct EditorState {
     EditorPanel  first_panel;
     EditorPanel  second_panel;
     EditorPanel* active_panel;
+
+    ConsoleState console_state;
+    String       console_message;      // Only used when in 'SHOW_MESSAGE' state.
+    String       console_command_name; // Used when in 'INSERT_COMMAND_NAME' or 'INSERT_COMMAND_ARGUMENTS' states.
+    EditorBuffer console_buffer;       // Only used when in 'INSERT_COMMAND_ARGUMENTS' state.
+    
+    LineRenderData console_render_data;
 };
 
 struct KeyState {
@@ -201,17 +214,20 @@ get_panel_layout(LayoutType type, bool allow_line_wrapping, bool scrollbar_is_vi
     u32 titlebar_height = font_ui->glyph_cell_size.y *
                           (1.0F + TITLEBAR_PADDING_TOP_PERCENTAGE + TITLEBAR_PADDING_BOTTOM_PERCENTAGE);
 
+    u32 console_height = font_text->glyph_cell_size.y *
+                         (1.0F + CONSOLE_PADDING_TOP_PERCENTAGE + CONSOLE_PADDING_BOTTOM_PERCENTAGE);
+
     EditorPanelLayout layout = {};
 
     layout.content_region.min.x = (g_window_bitmap.size_x - content_size_x) / 2;
-    layout.content_region.min.y = titlebar_height;
+    layout.content_region.min.y = console_height + titlebar_height;
     layout.content_region.max.y = g_window_bitmap.size_y;
     layout.content_region.max.x = layout.content_region.min.x + content_size_x;
 
     layout.titlebar_region.min.x = 0;
-    layout.titlebar_region.min.y = 0;
+    layout.titlebar_region.min.y = console_height;
     layout.titlebar_region.max.x = g_window_bitmap.size_x;
-    layout.titlebar_region.max.y = titlebar_height;
+    layout.titlebar_region.max.y = console_height + titlebar_height;
 
     return layout;
 }

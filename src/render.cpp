@@ -391,6 +391,21 @@ draw_panel_titlebar(LineRenderData* buffer_name_render_data, LineRenderData* cur
 }
 
 internal void
+draw_console(LineRenderData* render_data, Rect2D region)
+{
+    render_quad_opaque_unoptimized(region, CONSOLE_BACKGROUND_COLOR);
+    Font* font = font_from_id(FontID::TEXT_REGULAR);
+
+    Rect2D command_region = {};
+    command_region.min.x = region.min.x + (font->glyph_cell_size.x * CONSOLE_PADDING_SIDE_PERCENTAGE);
+    command_region.max.x = region.max.x - (font->glyph_cell_size.x * CONSOLE_PADDING_SIDE_PERCENTAGE);
+    command_region.min.y = region.min.y + (font->glyph_cell_size.y * CONSOLE_PADDING_BOTTOM_PERCENTAGE);
+    command_region.max.y = region.max.y - (font->glyph_cell_size.y * CONSOLE_PADDING_TOP_PERCENTAGE);
+
+    draw_text_line(render_data, FontID::TEXT_REGULAR, command_region, CONSOLE_CURSOR_COLOR);
+}
+
+internal void
 draw_editor_frame(EditorState* state)
 {
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
@@ -400,4 +415,15 @@ draw_editor_frame(EditorState* state)
     draw_panel_titlebar(&state->first_panel.buffer_name_render_data,
                         &state->first_panel.cursor_info_render_data,
                         layout.titlebar_region);
+
+    // @Copynpaste from 'get_panel_layout'. @Cleanup!
+    u32 console_height = font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.y *
+                         (1.0F + CONSOLE_PADDING_TOP_PERCENTAGE + CONSOLE_PADDING_BOTTOM_PERCENTAGE);
+
+    Rect2D console_region = {};
+    console_region.min.x = 0;
+    console_region.min.y = 0;
+    console_region.max.x = g_window_bitmap.size_x;
+    console_region.max.y = console_height;
+    draw_console(&state->console_render_data, console_region);
 }
