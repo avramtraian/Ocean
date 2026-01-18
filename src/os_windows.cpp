@@ -496,6 +496,9 @@ internal FrameInput g_frame_input;
 internal LRESULT
 win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM l_param)
 {
+    if (window_handle != g_window_handle)
+        return DefWindowProcA(window_handle, message, w_param, l_param);
+
     switch (message) {
       case WM_QUIT:
       case WM_CLOSE: {
@@ -645,7 +648,11 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         // Process the message queue.
         win32_reset_frame_input();
         MSG window_message = {};
-        while (PeekMessageA(&window_message, g_window_handle, 0, 0, PM_REMOVE)) {
+        // NOTE(Traian): It is very important to pass 'NULL' as the window handle since changing
+        // keyboard layout while running the editor will generate an event that doesn't have a
+        // window associated with but *MUST* be handled by the default window procedure. This forces
+        // us to "process" all events, no matter the source window... (18th January 2026)
+        while (PeekMessageA(&window_message, NULL, 0, 0, PM_REMOVE)) {
             TranslateMessage(&window_message);
             DispatchMessageA(&window_message);
         }
