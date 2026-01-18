@@ -250,6 +250,7 @@ os_read_entire_file(char* file_name)
     }
 
     if (file_size.QuadPart == 0) {
+        CloseHandle(file_handle);
         result.is_valid = true;
         result.data = NULL;
         result.size = 0;
@@ -285,6 +286,7 @@ os_read_entire_file(char* file_name)
         bytes_read_so_far += bytes_actually_read;
     }
 
+    CloseHandle(file_handle);
     result.is_valid = true;
     result.data = file_data;
     result.size = file_size.QuadPart;
