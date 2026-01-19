@@ -113,7 +113,7 @@ gather_buffer_render_data(EditorBuffer* buffer, Font* font,
             }
 
             // Wrap long lines. NOTE(Traian): When the wrap lines feature is not enabled by the user, the
-            // 'view_cell_count_x' is 'UINT32_MAX' and thus the following if-condition never passes,
+            // 'view_cell_count_x' is 'MAX_WRAP_COLUMN_COUNT' and thus the following if-condition never passes,
             // essentially disabling wrapped lines without any extra logic. (15th January 2026)
             if (cell_index_x + glyph_cell_count > view_cell_count_x) {
                 render_data->lines[cell_index_y].has_end_wrap_symbol = true;

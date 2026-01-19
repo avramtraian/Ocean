@@ -14,14 +14,14 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
         state->console_state = ConsoleState::INSERT_COMMAND_NAME;
     }
 
+    // @Cleanup!
     u32 view_column_count = 0;
     if (panel->wrap_content_lines) {
         EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
         view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
     }
     if (view_column_count == 0)
-        view_column_count = UINT32_MAX; // This effecively disables any line wrapping.
-
+        view_column_count = MAX_WRAP_COLUMN_COUNT; // This effecively disables any line wrapping.
 
     NavigationSystem navigation = {};
     navigation.buffer = &panel->content_buffer;
@@ -64,13 +64,13 @@ update_editor_console(EditorState* state, FrameInput* frame_input)
 
     NavigationSystem navigation = {};
     navigation.buffer = &state->console_buffer;
-    navigation.view_column_count = UINT32_MAX;
+    navigation.view_column_count = MAX_WRAP_COLUMN_COUNT;
     navigation.font = font_from_id(FontID::TEXT_REGULAR);
     navigation.tab_size = TAB_SIZE;
 
     InsertionSystem insertion = {};
     insertion.buffer = &state->console_buffer;
-    insertion.view_column_count = UINT32_MAX;
+    insertion.view_column_count = MAX_WRAP_COLUMN_COUNT;
     insertion.font = font_from_id(FontID::TEXT_REGULAR);
     insertion.tab_size = TAB_SIZE;
     insertion.allow_new_lines = false;

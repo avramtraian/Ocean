@@ -137,6 +137,10 @@ enum MouseButton : u8 {
     MouseButton_Right,
     MouseButton_MaxEnumCount,
 };
+// Constant that will not cause any wrappings, but that it's also small enough it will not cause
+// any overflow in calculations performed to determine how many rendering lines are associated with
+// one buffer line.
+constant u32 MAX_WRAP_COLUMN_COUNT = 1 << 31;
 
 struct FrameInput {
     KeyState       keys[KeyCode_MaxEnumCount];
