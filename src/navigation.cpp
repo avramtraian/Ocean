@@ -167,7 +167,7 @@ set_cursor_offset(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_co
 
     if (update_desired_column == UpdateDesiredColumn::YES) {
         u32 column_index = get_column_index(buffer, font, tab_size, new_byte_offset);
-        cursor->desired_column_index = column_index % visible_column_count;
+        cursor->desired_column_index = column_index;
     }
 }
 
@@ -450,7 +450,7 @@ move_cursor_down(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_col
             // This function handles the cases when there are not enough columns on the next line, as
             // well as when the desired column index is inside a glyph.
             new_cursor_offset = get_column_offset(buffer, font, tab_size, new_cursor_offset,
-                                                  cursor->desired_column_index);
+                                                  cursor->desired_column_index % visible_column_count);
         }
     }
 
@@ -472,7 +472,8 @@ move_cursor_up(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_colum
         // @Incomplete: This doesn't take into consideration multi-width glyphs (such as tabs) that don't fit
         // entirely at the end of the current rendering line and thus waste a few cells, which would cause the
         // cursor to go too far to the right.
-        u32 new_column_index = (wrapped_line_index - 1) * visible_column_count + cursor->desired_column_index;
+        u32 new_column_index = (wrapped_line_index - 1) * visible_column_count +
+                               (cursor->desired_column_index % visible_column_count);
         new_cursor_offset = get_column_offset(buffer, font, tab_size, current_line_offset, new_column_index);
     } else {
         usize previous_line_offset = get_previous_line_offset(buffer, cursor->head_offset);
@@ -481,12 +482,11 @@ move_cursor_up(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_colum
             u32 prev_wrapped_line_count = (prev_line_column_count + visible_column_count - 1) / visible_column_count;
 
             if (prev_wrapped_line_count == 1) {
-                // This function handles the cases when there are not enough columns on the previous line, as
-                // well as when the desired column index is inside a glyph.
                 new_cursor_offset = get_column_offset(buffer, font, tab_size, previous_line_offset,
-                                                      cursor->desired_column_index);
+                                                      cursor->desired_column_index % visible_column_count);
             } else {
-                u32 new_column_index = (prev_wrapped_line_count - 1) * visible_column_count + cursor->desired_column_index;
+                u32 new_column_index = (prev_wrapped_line_count - 1) * visible_column_count +
+                                       (cursor->desired_column_index % visible_column_count);
                 new_cursor_offset = get_column_offset(buffer, font, tab_size, previous_line_offset, new_column_index);
             }
         } else {
@@ -627,13 +627,6 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
     Font* font = system->font;
     u32 tab_size = system->tab_size;
 
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        EditorCursor* cursor = buffer->cursors + cursor_index;
-        cursor->desired_column_index = cursor->desired_column_index % view_column_count;
-    }
-
-    u32 buffer_line_count = get_number_of_lines(buffer->data, buffer->size);
-    
     // Move the existing cursors:
     {
         EditorCursor* cursors = buffer->cursors;
@@ -721,6 +714,8 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
         frame_input->keys[KeyCode_Control].is_down &&
         !frame_input->keys[KeyCode_Alt].is_down)
     {
+        u32 buffer_line_count = get_number_of_lines(buffer->data, buffer->size);
+
         for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i)
             *system->view_line_index = clamp((s32)*system->view_line_index + 1, (s32)0, (s32)buffer_line_count - 2);
         
