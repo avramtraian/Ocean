@@ -410,7 +410,7 @@ internal u32
 get_number_of_lines(void* data, usize size)
 {
     if (size == 0)
-        return 0;
+        return 1;
 
     u8* iterator = (u8*)data;
     u8* iterator_end = iterator + size;
@@ -710,16 +710,21 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
     }
 
     // Move buffer view:
-    if (system->view_line_index != NULL &&
-        frame_input->keys[KeyCode_Control].is_down &&
-        !frame_input->keys[KeyCode_Alt].is_down)
-    {
+    if (system->view_line_index != NULL) {
         u32 buffer_line_count = get_number_of_lines(buffer->data, buffer->size);
+        if (system->view_line_index != NULL &&
+            frame_input->keys[KeyCode_Control].is_down &&
+            !frame_input->keys[KeyCode_Alt].is_down)
+        {
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i)
+                *system->view_line_index = clamp<s32>((s32)*system->view_line_index + 1, 0, buffer_line_count - 1);
+            
+            for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i)
+                *system->view_line_index = clamp<s32>((s32)*system->view_line_index - 1, 0, buffer_line_count - 1);
+        }
 
-        for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i)
-            *system->view_line_index = clamp((s32)*system->view_line_index + 1, (s32)0, (s32)buffer_line_count - 2);
-        
-        for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i)
-            *system->view_line_index = clamp((s32)*system->view_line_index - 1, (s32)0, (s32)buffer_line_count - 2);
+        s32 new_view_line_index = *system->view_line_index;
+        new_view_line_index -= frame_input->mouse_wheel_vertical_scroll * MOUSE_WHEEL_SCROLL_JUMP;
+        *system->view_line_index = clamp<s32>(new_view_line_index, 0, buffer_line_count - 1);
     }
 }

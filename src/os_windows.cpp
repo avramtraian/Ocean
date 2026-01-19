@@ -530,6 +530,11 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
         }
         return 0;
       }
+
+      case WM_MOUSEWHEEL: {
+        g_frame_input.mouse_wheel_vertical_scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
+        return 0;
+      }
     }
 
     return DefWindowProcA(window_handle, message, w_param, l_param);
@@ -549,6 +554,7 @@ win32_reset_frame_input()
     }
 
     g_frame_input.char_event_count = 0;
+    g_frame_input.mouse_wheel_vertical_scroll = 0;
 }
 
 internal void
