@@ -150,7 +150,7 @@ gather_buffer_render_data(EditorBuffer* buffer, Font* font,
                 }
             }
 
-            if (cursor_is_at_end_of_buffer) {
+            if (cursor_is_at_end_of_buffer && cell_index_y < render_data->line_count) {
                 // Insert a "fake" glyph at the end of the last rendered line with the 'HasCursor' flag
                 // set in order to make sure the cursor will actually be rendered.
                 GlyphRenderData* glyph = push_glyph_to_line(render_data->lines + cell_index_y);
