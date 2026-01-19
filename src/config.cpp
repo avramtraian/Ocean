@@ -7,8 +7,9 @@ constant s32 WRAP_SYMBOL_PADDING_SIZE = 6;
 constant s32 SCROLLBAR_SIZE           = 15;
 constant s32 SPLITTER_SIZE            = 8;
 
-constant s32 TAB_SIZE                 = 4;
-constant s32 MOUSE_WHEEL_SCROLL_JUMP  = 3;
+constant s32 TAB_SIZE                  = 4;
+constant s32 MOUSE_V_WHEEL_SCROLL_JUMP = 3;
+constant s32 MOUSE_H_WHEEL_SCROLL_JUMP = 3;
 
 constant f32 CURSOR_SIZE_PERCENTAGE_X = 0.2F;
 constant f32 CURSOR_SIZE_PERCENTAGE_Y = 1.3F;

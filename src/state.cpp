@@ -3,90 +3,9 @@
  * This file is part of my personal text editor and is distributed under the MIT license.
  */
 
-struct CursorSelectionRange {
-    usize start_offset;
-    usize end_offset;
-};
-
-struct CursorPosition {
-    u32 line_index;
-    u32 column_index;
-};
-
-struct EditorCursor {
-    usize head_offset;
-    usize tail_offset;
-    u32 desired_column_index;
-};
-
-enum GlyphRenderFlagsEnum : u16 {
-    GlyphRenderFlag_None      = 0,
-    GlyphRenderFlag_RawByte   = BIT(0),
-    GlyphRenderFlag_HasCursor = BIT(1),
-};
-typedef u16 GlyphRenderFlags;
-
-struct GlyphRenderData {
-    u32              codepoint;
-    u16              cell_count;
-    GlyphRenderFlags flags;
-    LinearColor      foreground;
-    LinearColor      background;
-};
-
-struct LineRenderData {
-    GlyphRenderData* glyphs;
-    u32              glyph_count;
-    bool             has_start_wrap_symbol;
-    bool             has_end_wrap_symbol;
-};
-
-struct EditorBufferRenderData {
-    u32             line_count;
-    LineRenderData* lines;
-    u32             first_column_index;
-};
-
-struct EditorBuffer {
-    u8*                    data;
-    usize                  size;
-    usize                  committed;
-    usize                  reserved;
-    EditorCursor*          cursors;
-    u32                    cursor_count;
-    u32                    cursor_allocated_count;
-    EditorBufferRenderData render_data;
-};
-
-struct EditorPanel {
-    EditorBuffer   content_buffer;
-    u32            content_view_column_index;
-    u32            content_view_line_index;
-    bool           wrap_content_lines;
-
-    String buffer_name;
-    LineRenderData buffer_name_render_data;
-    LineRenderData cursor_info_render_data;
-};
-
-enum class ConsoleState {
-    SHOW_MESSAGE,
-    INSERT_COMMAND_NAME,
-    INSERT_COMMAND_ARGUMENTS,
-};
-
-struct EditorState {
-    EditorPanel  first_panel;
-    EditorPanel  second_panel;
-    EditorPanel* active_panel;
-
-    ConsoleState console_state;
-    String       console_message;      // Only used when in 'SHOW_MESSAGE' state.
-    String       console_command_name; // Used when in 'INSERT_COMMAND_NAME' or 'INSERT_COMMAND_ARGUMENTS' states.
-    EditorBuffer console_buffer;       // Only used when in 'INSERT_COMMAND_ARGUMENTS' state.
-    
-    LineRenderData console_render_data;
-};
+//
+// FRAME INPUT DEFINITIONS:
+//
 
 struct KeyState {
     bool is_down;
@@ -137,10 +56,6 @@ enum MouseButton : u8 {
     MouseButton_Right,
     MouseButton_MaxEnumCount,
 };
-// Constant that will not cause any wrappings, but that it's also small enough it will not cause
-// any overflow in calculations performed to determine how many rendering lines are associated with
-// one buffer line.
-constant u32 MAX_WRAP_COLUMN_COUNT = 1 << 31;
 
 struct FrameInput {
     KeyState       keys[KeyCode_MaxEnumCount];
@@ -149,7 +64,113 @@ struct FrameInput {
     u32            char_event_count;
 
     MouseButton mouse_buttons[MouseButton_MaxEnumCount];
+    s32 mouse_wheel_vertical_scroll;
+    s32 mouse_wheel_horizontal_scroll;
 };
+
+//
+// RENDERING DATA DEFINITIONS:
+//
+
+enum GlyphRenderFlagsEnum : u16 {
+    GlyphRenderFlag_None      = 0,
+    GlyphRenderFlag_RawByte   = BIT(0),
+    GlyphRenderFlag_HasCursor = BIT(1),
+};
+typedef u16 GlyphRenderFlags;
+
+struct GlyphRenderData {
+    u32              codepoint;
+    u16              cell_count;
+    GlyphRenderFlags flags;
+    LinearColor      foreground;
+    LinearColor      background;
+};
+
+struct LineRenderData {
+    GlyphRenderData* glyphs;
+    u32              glyph_count;
+    bool             has_start_wrap_symbol;
+    bool             has_end_wrap_symbol;
+};
+
+struct EditorBufferRenderData {
+    u32             line_count;
+    LineRenderData* lines;
+    u32             first_column_index;
+};
+
+//
+// EDITOR STATE DEFINITIONS:
+//
+
+struct EditorCursor {
+    usize head_offset;
+    usize tail_offset;
+    u32 desired_column_index;
+};
+
+struct CursorSelectionRange {
+    usize start_offset;
+    usize end_offset;
+};
+
+struct CursorPosition {
+    u32 line_index;
+    u32 column_index;
+};
+
+struct EditorBuffer {
+    u8*                    data;
+    usize                  size;
+    usize                  committed;
+    usize                  reserved;
+    EditorCursor*          cursors;
+    u32                    cursor_count;
+    u32                    cursor_allocated_count;
+    EditorBufferRenderData render_data;
+};
+
+struct EditorPanel {
+    EditorBuffer   content_buffer;
+    u32            content_view_column_index;
+    u32            content_view_line_index;
+    bool           wrap_content_lines;
+
+    String buffer_name;
+    LineRenderData buffer_name_render_data;
+    LineRenderData cursor_info_render_data;
+};
+
+enum class ConsoleState {
+    SHOW_MESSAGE,
+    INSERT_COMMAND_NAME,
+    INSERT_COMMAND_ARGUMENTS,
+};
+
+struct EditorState {
+    EditorPanel  first_panel;
+    EditorPanel  second_panel;
+    EditorPanel* active_panel;
+
+    EditorCommandTable command_table;
+
+    ConsoleState   console_state;
+    EditorCommand* active_command;
+    String         console_message;
+    EditorBuffer   console_buffer;
+    
+    LineRenderData console_render_data;
+};
+
+// Constant that will not cause any wrappings, but that it's also small enough it will not cause
+// any overflow in calculations performed to determine how many rendering lines are associated with
+// one buffer line.
+constant u32 MAX_WRAP_COLUMN_COUNT = 1 << 31;
+
+//
+// GENERAL-PURPOSE UTILITY FUNCTIONS:
+//
 
 internal CursorPosition
 get_cursor_position(EditorBuffer* buffer, Font* font, u32 tab_size, usize cursor_byte_offset)

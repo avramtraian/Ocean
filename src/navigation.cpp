@@ -724,7 +724,13 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
         }
 
         s32 new_view_line_index = *system->view_line_index;
-        new_view_line_index -= frame_input->mouse_wheel_vertical_scroll * MOUSE_WHEEL_SCROLL_JUMP;
+        new_view_line_index -= frame_input->mouse_wheel_vertical_scroll * MOUSE_V_WHEEL_SCROLL_JUMP;
         *system->view_line_index = clamp<s32>(new_view_line_index, 0, buffer_line_count - 1);
+    }
+
+    if (system->view_column_index != NULL) {
+        s32 new_view_column_index = *system->view_column_index;
+        new_view_column_index += frame_input->mouse_wheel_horizontal_scroll * MOUSE_H_WHEEL_SCROLL_JUMP;
+        *system->view_column_index = clamp_non_zero(new_view_column_index);
     }
 }
