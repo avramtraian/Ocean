@@ -95,6 +95,20 @@ remove_from_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_c
 }
 
 internal void
+clear_buffer(EditorBuffer* buffer)
+{
+    buffer->size = 0;
+
+    if (buffer->cursor_count == 0)
+        return;
+
+    buffer->cursor_count = 1;
+    buffer->cursors[0].head_offset = 0;
+    buffer->cursors[0].tail_offset = 0;
+    buffer->cursors[0].desired_column_index = 0;
+}
+
+internal void
 delete_cursor_selection_range(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
                               EditorCursor* cursor)
 {
