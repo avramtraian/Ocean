@@ -81,6 +81,9 @@ struct OSReadFileResult {
     usize size;
 };
 
+struct OSFileIterator {
+};
+
 struct OSWindowBitmap {
     constant usize bytes_per_pixel = 4;
     u8* pixels;
@@ -106,13 +109,16 @@ internal LRESULT            win32_window_procedure          (HWND window_handle,
 internal usize              os_get_memory_page_size         ();
 internal bool               os_is_memory_page_aligned       (usize value);
 internal usize              os_get_memory_page_aligned      (usize value);
+
 internal void*              os_reserve_memory               (usize size);
 internal void               os_commit_memory                (void* address, usize size);
 internal void*              os_allocate_memory              (usize size);
 internal void               os_free_memory                  (void* address);
 internal void               os_decommit_memory              (void* address, usize size);
+
 internal OSReadFileResult   os_read_entire_file             (char* file_name);
 internal void               os_free_read_file_result        (OSReadFileResult result);
+internal bool               os_write_entire_file            (char* filen_name, void* data, usize size);
 
 internal OSRingBuffer       os_allocate_ring_buffer         (usize size);
 internal void               os_free_ring_buffer             (OSRingBuffer* buffer);
@@ -152,6 +158,7 @@ internal OSWindowBitmap g_window_bitmap;
 #include "insertion.cpp"
 #include "gather_render_data.cpp"
 #include "render.cpp"
+#include "commands.cpp"
 #include "update.cpp"
 
 //
@@ -298,6 +305,33 @@ os_free_read_file_result(OSReadFileResult result)
 {
     if (result.is_valid && result.size > 0)
         os_free_memory(result.data);
+}
+
+internal bool
+os_write_entire_file(char* file_name, void* data, usize size)
+{
+    HANDLE file_handle = CreateFileA(file_name, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS,
+                                     FILE_ATTRIBUTE_NORMAL, NULL);
+    if (file_handle == INVALID_HANDLE_VALUE)
+        return false; // Failed to open the file handle.
+
+    u64 bytes_written_so_far = 0;
+    constant u64 MAX_BYTES_TO_WRITE = (DWORD)(-1);
+
+    while (bytes_written_so_far < size) {
+        DWORD bytes_to_write = (DWORD)min(size - bytes_written_so_far, MAX_BYTES_TO_WRITE);
+        DWORD bytes_actually_written = 0;
+
+        if (!WriteFile(file_handle, (u8*)data + bytes_written_so_far, bytes_to_write, &bytes_actually_written, NULL)) {
+            CloseHandle(file_handle);
+            return false; // Failed to write to the file.
+        }
+
+        bytes_written_so_far += bytes_actually_written;
+    }
+
+    CloseHandle(file_handle);
+    return true;
 }
 
 typedef PVOID(WINAPI PFN_VirtualAlloc2)(HANDLE, PVOID, SIZE_T, ULONG, ULONG, MEM_EXTENDED_PARAMETER*, ULONG);
@@ -676,7 +710,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     fonts_description.ui_regular_name = "C:/Windows/Fonts/consola.ttf";
     fonts_description.ui_bold_name    = "C:/Windows/Fonts/consolab.ttf";
     fonts_description.ui_italic_name  = "C:/Windows/Fonts/consolai.ttf";
-    fonts_description.ui_height       = 29;
+    fonts_description.ui_height       = 24;
 
     MemoryArena eternal_arena = create_arena(KiB(4), MiB(1));
     MemoryArena frame_arena   = create_arena(MiB(16), GiB(1));
@@ -688,33 +722,37 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
     reload_global_fonts(&fonts_description);
 
     EditorState editor_state = {};
-    editor_state.active_panel = &editor_state.first_panel;
-    editor_state.first_panel.wrap_content_lines = true;
-    EditorBuffer* buffer = &editor_state.first_panel.content_buffer;
-    buffer->reserved = MiB(16);
-    buffer->committed = MiB(16);
-    buffer->data = (u8*)os_allocate_memory(buffer->committed);
+    generate_command_table(&editor_state);
 
-    OSReadFileResult read = os_read_entire_file("C:/Dev/editor3/src/os_windows.cpp");
-    if (read.is_valid) {
-        copy_memory(buffer->data, read.data, read.size);
-        buffer->size = read.size;
+    editor_state.active_panel = &editor_state.first_panel;
+    {
+        editor_state.first_panel.wrap_content_lines = false;
+        editor_state.first_panel.buffer_name = STRING_LIT("*unnamed*");
+        EditorBuffer* buffer = &editor_state.first_panel.content_buffer;
+        buffer->cursor_allocated_count = 16;
+        buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
+        buffer->cursor_count = 1;
+        buffer->cursors[0].tail_offset = 0;
+        buffer->cursors[0].head_offset = 0;
     }
 
-    editor_state.first_panel.buffer_name = STRING_LIT("os_windows.cpp");
-    buffer->cursor_allocated_count = 16;
-    buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
-    buffer->cursor_count = 1;
-    buffer->cursors[0].tail_offset = 0;
-    buffer->cursors[0].head_offset = 25;
+    {
+        editor_state.second_panel.wrap_content_lines = false;
+        editor_state.second_panel.buffer_name = STRING_LIT("*unnamed*");
+        EditorBuffer* buffer = &editor_state.second_panel.content_buffer;
+        buffer->cursor_allocated_count = 16;
+        buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
+        buffer->cursor_count = 1;
+        buffer->cursors[0].tail_offset = 0;
+        buffer->cursors[0].head_offset = 0;
+    }
 
     editor_state.console_buffer.cursor_allocated_count = 16;
-    editor_state.console_buffer.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
+    editor_state.console_buffer.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor,
+                                                     editor_state.console_buffer.cursor_allocated_count);
     editor_state.console_buffer.cursor_count = 1;
     editor_state.console_buffer.cursors[0].head_offset = 0;
     editor_state.console_buffer.cursors[0].tail_offset = 0;
-    editor_state.console_command_name = STRING_LIT("save-file-as");
-    editor_state.console_message = STRING_LIT("Copied buffer.");
 
     g_window_should_close = false;
     while (!g_window_should_close) {
@@ -781,6 +819,7 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
         reset_memory_arena(g_arenas.frame);
 
         update_editor(&editor_state, &g_frame_input);
+        update_command_system(&editor_state, &g_frame_input);
         gather_render_data(&editor_state);
         draw_editor_frame(&editor_state);
 

@@ -7,11 +7,18 @@ internal void
 update_editor_panel(EditorState* state, FrameInput* frame_input)
 {
     EditorPanel* panel = state->active_panel;
+    if (panel == NULL)
+        return;
 
+    // @Incomplete: This should be done via a key shortcut in order to allow configurability by the
+    // user. However, the current implementation of the command system doesn't allow a command to
+    // change the state of the console... (18th January 2026)
     if (frame_input->keys[KeyCode_Control].is_down &&
         frame_input->keys[KeyCode_Tilde].was_pressed_this_frame)
     {
+        ASSERT(state->console_state == ConsoleState::SHOW_MESSAGE);
         state->console_state = ConsoleState::INSERT_COMMAND_NAME;
+        clear_buffer(&state->console_buffer);
     }
 
     // @Cleanup!
@@ -47,23 +54,6 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
 internal void
 update_editor_console(EditorState* state, FrameInput* frame_input)
 {
-    if (frame_input->keys[KeyCode_Escape].was_pressed_this_frame) {
-        state->console_state = ConsoleState::SHOW_MESSAGE;
-        return;
-    }
-
-    if (state->console_state == ConsoleState::INSERT_COMMAND_NAME) {
-        if (frame_input->keys[KeyCode_Enter].was_pressed_this_frame) {
-            state->console_state = ConsoleState::INSERT_COMMAND_ARGUMENTS;
-            
-            EditorBuffer* buffer = &state->console_buffer;
-            buffer->size = 0;
-            buffer->cursor_count = 1;
-            buffer->cursors[0].head_offset = 0;
-            buffer->cursors[0].tail_offset = 0;
-        }
-    }
-
     NavigationSystem navigation = {};
     navigation.buffer = &state->console_buffer;
     navigation.view_column_count = MAX_WRAP_COLUMN_COUNT;

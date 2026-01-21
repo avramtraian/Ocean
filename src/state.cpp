@@ -71,6 +71,57 @@ struct FrameInput {
 };
 
 //
+// COMMAND SYSTEM DEFINITIONS:
+//
+
+enum ModifiersEnum : u8 {
+    MODIFIER_NONE    = 0,
+    MODIFIER_CONTROL = BIT(0),
+    MODIFIER_SHIFT   = BIT(1),
+    MODIFIER_ALT     = BIT(2),
+};
+typedef u8 Modifiers;
+
+struct KeyShortcut {
+    Modifiers modifiers;
+    KeyCode   key_code;
+};
+
+enum class TerminateCommand : u8 {
+    NO,
+    YES,
+};
+
+#define COMMAND_FRONTEND(name) \
+    TerminateCommand (name)(struct EditorState* state, String arguments)
+typedef COMMAND_FRONTEND(PFN_command_execute);
+
+#define COMMAND_GATHER_RENDER_DATA(name) \
+    void (name)(struct EditorState* state, String arguments)
+typedef COMMAND_GATHER_RENDER_DATA(PFN_command_gather_render_data);
+
+struct EditorCommand {
+    String               name;
+    bool                 has_arguments;
+    bool                 dispatch_while_typing;
+    PFN_command_execute* execute;
+
+    constant u32 max_alias_count = 4;
+    u32          alias_count;
+    String       aliases[max_alias_count];
+
+    constant u32 max_key_shortcut_count = 4;
+    u32          key_shortcut_count;
+    KeyShortcut key_shortcuts[max_key_shortcut_count];
+};
+
+struct EditorCommandTable {
+    constant u32  max_command_count = 32;
+    u32           command_count;
+    EditorCommand commands[max_command_count];
+};
+
+//
 // RENDERING DATA DEFINITIONS:
 //
 

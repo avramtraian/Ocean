@@ -338,8 +338,10 @@ gather_console_render_data_insert_command_arguments(EditorState* state)
     EditorBuffer* buffer = &state->console_buffer;
 
     // Generate the render data for the command name.
-    generate_line_render_data(render_data, state->console_command_name, CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
-    generate_line_render_data(render_data, STRING_LIT(": "),            CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
+    ASSERT(state->active_command != NULL);
+    String command_name = state->active_command->name;
+    generate_line_render_data(render_data, command_name,     CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
+    generate_line_render_data(render_data, STRING_LIT(": "), CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
 
     // Generate the render data for the command arguments written by the user.
     generate_line_render_data(render_data, &state->console_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
