@@ -494,6 +494,17 @@ win32_virtual_key_from_key_code(KeyCode key_code)
     }
 }
 
+internal int
+win32_virtual_key_from_mouse_button(MouseButton mouse_button)
+{
+    switch (mouse_button) {
+      case MouseButton_Left:   return VK_LBUTTON;
+      case MouseButton_Right:  return VK_RBUTTON;
+      case MouseButton_Middle: return VK_MBUTTON;
+      default:                 return 0;
+    }
+}
+
 internal FrameInput g_frame_input;
 
 internal LRESULT
@@ -532,12 +543,12 @@ win32_window_procedure(HWND window_handle, UINT message, WPARAM w_param, LPARAM 
       }
 
       case WM_MOUSEWHEEL: {
-        g_frame_input.mouse_wheel_vertical_scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
+        g_frame_input.mouse_wheel_vertical_scroll = (f32)GET_WHEEL_DELTA_WPARAM(w_param) / (f32)WHEEL_DELTA;
         return 0;
       }
 
       case WM_MOUSEHWHEEL: {
-        g_frame_input.mouse_wheel_horizontal_scroll = GET_WHEEL_DELTA_WPARAM(w_param) / WHEEL_DELTA;
+        g_frame_input.mouse_wheel_horizontal_scroll = (f32)GET_WHEEL_DELTA_WPARAM(w_param) / (f32)WHEEL_DELTA;
         return 0;
       }
     }
@@ -558,9 +569,44 @@ win32_reset_frame_input()
         key_state->event_count = 0;
     }
 
+    for (MouseButton mouse_button = MouseButton_Unknown;
+         mouse_button < MouseButton_MaxEnumCount;
+         mouse_button = (MouseButton)(mouse_button + 1))
+    {
+        KeyState* button_state = &g_frame_input.mouse_buttons[mouse_button];
+        button_state->was_pressed_this_frame = false;
+        button_state->was_released_this_frame = false;
+        button_state->event_count = 0;
+    }
+
     g_frame_input.char_event_count = 0;
     g_frame_input.mouse_wheel_vertical_scroll = 0;
     g_frame_input.mouse_wheel_horizontal_scroll = 0;
+}
+
+internal void
+win32_query_key_state(int virtual_key, KeyState* key_state, bool window_has_focus)
+{
+    bool was_previously_down = key_state->is_down;
+    key_state->is_down = false;
+
+    // NOTE(Traian): This ensures that when losing window focus (for whatever reason) all keys that are
+    // currently down will have the 'was_released_this_frame' flag set to true during this frame. If we
+    // however regain focus without the key being released, we will set the 'was_pressed_this_frame' flag,
+    // but the window procedure will not set 'received_key_down_event'. This inconsistency might be a problem,
+    // but fixing it would introduce quite a bit of complexity in input state management. (9th January 2026)
+
+    if (window_has_focus) {
+        SHORT win32_key_state = GetKeyState(virtual_key);
+        if (win32_key_state & (1 << 15))
+            key_state->is_down = true;
+    }
+
+    if (key_state->is_down && !was_previously_down)
+        key_state->was_pressed_this_frame = true;
+
+    if (!key_state->is_down && was_previously_down)
+        key_state->was_released_this_frame = true;
 }
 
 internal void
@@ -574,27 +620,31 @@ win32_query_frame_input()
          key_code = (KeyCode)(key_code + 1))
     {
         KeyState* key_state = &g_frame_input.keys[key_code];
-        bool was_previously_down = key_state->is_down;
-        key_state->is_down = false;
+        int virtual_key = win32_virtual_key_from_key_code(key_code);
+        win32_query_key_state(virtual_key, key_state, window_has_focus);
+    }
 
-        // NOTE(Traian): This ensures that when losing window focus (for whatever reason) all keys that are
-        // currently down will have the 'was_released_this_frame' flag set to true during this frame. If we
-        // however regain focus without the key being released, we will set the 'was_pressed_this_frame' flag,
-        // but the window procedure will not set 'received_key_down_event'. This inconsistency might be a problem,
-        // but fixing it would introduce quite a bit of complexity in input state management. (9th January 2026)
+    for (MouseButton mouse_button = MouseButton_Unknown;
+         mouse_button < MouseButton_MaxEnumCount;
+         mouse_button = (MouseButton)(mouse_button + 1))
+    {
+        KeyState* button_state = &g_frame_input.mouse_buttons[mouse_button];
+        int virtual_key = win32_virtual_key_from_mouse_button(mouse_button);
+        win32_query_key_state(virtual_key, button_state, window_has_focus);
+    }
 
-        if (window_has_focus) {
-            int virtual_key = win32_virtual_key_from_key_code(key_code);
-            SHORT win32_key_state = GetKeyState(virtual_key);
-            if (win32_key_state & (1 << 15))
-                key_state->is_down = true;
+    POINT screen_mouse_position = {};
+    if (GetCursorPos(&screen_mouse_position)) {
+        POINT client_mouse_position = screen_mouse_position;
+        if (ScreenToClient(g_window_handle, &client_mouse_position)) {
+            Vector2u window_size = win32_get_window_size();
+            client_mouse_position.y = (s32)window_size.y - client_mouse_position.y; // Flip the Y coordinate
+            g_frame_input.mouse_position = v2s(client_mouse_position.x, client_mouse_position.y);
+        } else {
+            g_frame_input.mouse_position = v2s(0, 0);
         }
-
-        if (key_state->is_down && !was_previously_down)
-            key_state->was_pressed_this_frame = true;
-
-        if (!key_state->is_down && was_previously_down)
-            key_state->was_released_this_frame = true;
+    } else {
+        g_frame_input.mouse_position = v2s(0, 0);
     }
 }
 

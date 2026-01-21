@@ -54,6 +54,7 @@ enum MouseButton : u8 {
     MouseButton_Unknown,
     MouseButton_Left,
     MouseButton_Right,
+    MouseButton_Middle,
     MouseButton_MaxEnumCount,
 };
 
@@ -63,9 +64,10 @@ struct FrameInput {
     u32            char_events[max_char_event_count];
     u32            char_event_count;
 
-    MouseButton mouse_buttons[MouseButton_MaxEnumCount];
-    s32 mouse_wheel_vertical_scroll;
-    s32 mouse_wheel_horizontal_scroll;
+    KeyState mouse_buttons[MouseButton_MaxEnumCount];
+    f32 mouse_wheel_vertical_scroll;
+    f32 mouse_wheel_horizontal_scroll;
+    Vector2s mouse_position;
 };
 
 //
