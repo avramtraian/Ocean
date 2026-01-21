@@ -319,13 +319,6 @@ utf8_iterator(void* data, usize size)
     return iterator;
 }
 
-internal Utf8Iterator
-utf8_iterator(String string)
-{
-    Utf8Iterator result = utf8_iterator(string.data, string.size);
-    return result;
-}
-
 internal bool
 is_in_range(Utf8Iterator iterator)
 {
@@ -406,13 +399,6 @@ utf8_get_codepoint_count(void* data, usize size)
         advance(&iterator);
     }
     return codepoint_count;
-}
-
-internal usize
-utf8_get_codepoint_count(String string)
-{
-    usize result = utf8_get_codepoint_count(string.data, string.size);
-    return result;
 }
 
 internal inline bool

@@ -3,6 +3,11 @@
  * This file is part of my personal text editor and is distributed under the MIT license.
  */
 
+#define CONCAT_IMPL(x, y) x##y
+#define CONCAT(x, y)      CONCAT_IMPL(x, y)
+#define STRINGIFY_IMPL(x) #x
+#define STRINGIFY(x)      STRINGIFY_IMPL(x, y)
+
 #define KiB(x) (1024 * (x))
 #define MiB(x) (1024 * KiB(x))
 #define GiB(x) (1024 * MiB(x))
@@ -176,6 +181,20 @@ struct String {
     StringSource source;
 };
 
+internal Utf8Iterator
+utf8_iterator(String string)
+{
+    Utf8Iterator result = utf8_iterator(string.data, string.size);
+    return result;
+}
+
+internal usize
+utf8_get_codepoint_count(String string)
+{
+    usize result = utf8_get_codepoint_count(string.data, string.size);
+    return result;
+}
+
 internal String
 initialize_string(u8* data, usize size, StringSource source)
 {
@@ -254,6 +273,21 @@ copy_string_frame(String source_string)
     return result;
 }
 
+internal String
+null_terminated_frame(String source_string)
+{
+    if (source_string.size > 0 && source_string.data[source_string.size - 1] == '\0') {
+        // The string is already null-terminated.
+        String result = copy_string_frame(source_string);
+        return result;
+    }
+
+    String result = push_string_frame(source_string.size + sizeof('\0'));
+    copy_memory(result.data, source_string.data, source_string.size);
+    result.data[result.size - 1] = '\0';
+    return result;
+}
+
 enum NumericBase : u8 {
     NumericBase_Binary      = 2,
     NumericBase_Octal       = 8,
@@ -283,5 +317,138 @@ string_from_number(u64 unsigned_integer, NumericBase numeric_base = NumericBase_
         ++byte_offset;
     }
 
+    return result;
+}
+
+// @Incomplete: It doesn't check that the parsed number actually fits iniside the
+// signed 64-bit integer range! (18th January 2026)
+internal bool
+parse_integer(String string, s64* out_result)
+{
+    *out_result = 0;
+    if (string.size == 0)
+        return false;
+
+    usize base_offset = 0;
+    bool is_negative = false;
+    if (string.data[0] == '-') {
+        if (string.size == 1)
+            return false;
+
+        base_offset = 1;
+        is_negative = true;
+    }
+
+    s64 result = 0;
+    for (usize offset = base_offset; offset < string.size; ++offset) {
+        char digit = string.data[offset];
+        if (!('0' <= digit && digit <= '9')) return false;
+
+        result *= 10;
+        result += (digit - '0');
+    }
+
+    *out_result = is_negative ? -result : result;
+    return true;
+}
+
+internal usize
+find(String string, u32 codepoint, usize search_offset = 0)
+{
+    ASSERT(search_offset <= string.size);
+    for (Utf8Iterator iterator = utf8_iterator(string.data + search_offset, string.size - search_offset);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        u32 current_codepoint = codepoint_or_byte_value(iterator);
+        if (current_codepoint == codepoint)
+            return search_offset + iterator.offset;
+    }
+
+    // The codepoint doesn't exist in the string.
+    return string.size;
+}
+
+template<typename T>
+struct ArrayView {
+    T*    elements;
+    usize count;
+};
+
+#define FOREACH_ARRAY(x, it_name)             \
+    for (auto* it_name = (x).elements;        \
+         it_name != (x).elements + (x).count; \
+         ++it_name)
+
+internal ArrayView<String>
+split(String string, u32 splitting_codepoint)
+{
+    if (string.size == 0)
+        return {}; // Return an empty array view since there are no splitted chunks.
+
+    usize current_offset = 0;
+
+    Utf8EncodeResult encode = utf8_encode(splitting_codepoint);
+    usize byte_width = encode.is_valid ? encode.byte_width : 1;
+
+    // Allocate the result structure.
+    ArrayView<String> result = {};
+    result.count = 1;
+    for (Utf8Iterator iterator = utf8_iterator(string);
+         is_in_range(iterator);
+         advance(&iterator))
+    {
+        if (codepoint_or_byte_value(iterator) == splitting_codepoint)
+            result.count++;
+    }
+    result.elements = PUSH_ARRAY(g_arenas.frame, String, result.count);
+
+    usize chunk_index = 0;
+    while (current_offset < string.size) {
+        String* chunk = result.elements + chunk_index;
+        chunk_index++;
+
+        usize next_split_offset = find(string, splitting_codepoint, current_offset);
+        *chunk = push_string_frame(next_split_offset - current_offset);
+        copy_memory(chunk->data, string.data + current_offset, chunk->size);
+
+        current_offset = next_split_offset + byte_width;
+    }
+
+    ASSERT(chunk_index == result.count);
+    return result;
+}
+
+enum class StringCompare {
+    LESS,
+    EQUAL,
+    GREATER,
+};
+
+internal StringCompare
+compare_ascii(String lhs, String rhs)
+{
+    usize common_size = min(lhs.size, rhs.size);
+    for (usize offset = 0; offset < common_size; ++offset) {
+        if (lhs.data[offset] < rhs.data[offset])
+            return StringCompare::LESS;
+        if (lhs.data[offset] > rhs.data[offset])
+            return StringCompare::GREATER;
+    }
+
+    if (lhs.size < rhs.size)
+        return StringCompare::LESS;
+    if (lhs.size > rhs.size)
+        return StringCompare::GREATER;
+
+    return StringCompare::EQUAL;
+}
+
+internal String
+concat_frame(String lhs, String rhs)
+{
+    String result = push_string_frame(lhs.size + rhs.size);
+    copy_memory(result.data, lhs.data, lhs.size);
+    copy_memory(result.data + lhs.size, rhs.data, rhs.size);
     return result;
 }
