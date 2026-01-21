@@ -16,8 +16,8 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
 
     // @Cleanup!
     u32 view_column_count = 0;
+    EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
     if (panel->wrap_content_lines) {
-        EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
         view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
     }
     if (view_column_count == 0)
@@ -30,6 +30,8 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
     navigation.tab_size = TAB_SIZE;
     navigation.view_line_index   = &panel->content_view_line_index;
     navigation.view_column_index = &panel->content_view_column_index;
+    navigation.allow_mouse_cursor = true;
+    navigation.buffer_region = layout.content_region;
 
     InsertionSystem insertion = {};
     insertion.buffer = &panel->content_buffer;

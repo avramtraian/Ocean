@@ -241,6 +241,8 @@ draw_editor_buffer(EditorBufferRenderData* render_data, Rect2D region)
     if (is_degenerated(region))
         return;
 
+    region.min.x -= WRAP_SYMBOL_PADDING_SIZE;
+    region.max.x += WRAP_SYMBOL_PADDING_SIZE;
     render_quad_opaque_unoptimized(region, BACKGROUND_COLOR);
 
     Font* font = font_from_id(FontID::TEXT_REGULAR);

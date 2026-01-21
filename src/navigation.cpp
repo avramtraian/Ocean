@@ -617,7 +617,31 @@ struct NavigationSystem {
 
     u32* view_column_index; // If valid, it will contain the updated value.
     u32* view_line_index; // If valid, it will contain the updated value.
+
+    bool allow_mouse_cursor;
+    Rect2D buffer_region;
 };
+
+internal Vector2s
+get_cell_index_from_position(Rect2D region, Font* font, Vector2s position)
+{
+    Vector2s top_left_offset = v2s(region.min.x, region.max.y);
+    top_left_offset.x -= (3 * font->glyph_cell_size.x) / 4;
+    top_left_offset.y += font->line_gap / 2;
+
+    Vector2s relative_position = {};
+    relative_position.x = position.x - top_left_offset.x;
+    relative_position.y = top_left_offset.y - position.y;
+
+    Vector2s cell_index = {};
+    cell_index.x = relative_position.x / font->glyph_cell_size.x;
+    cell_index.y = relative_position.y / font->line_height;
+
+    if (relative_position.x < 0) cell_index.x--;
+    if (relative_position.y < 0) cell_index.y--;
+
+    return cell_index;
+}
 
 internal void
 update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
@@ -675,6 +699,34 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
                     // @Incomplete: Specify the visible column count and properly set the wrap lines flag.
                     move_cursor_up(buffer, font, tab_size, view_column_count, cursor, cursor_is_selecting);
                 }
+            }
+        }
+    }
+
+    if (system->allow_mouse_cursor &&
+        frame_input->mouse_buttons[MouseButton_Left].is_down)
+    {
+        if (is_inside_rect(system->buffer_region, frame_input->mouse_position)) {
+            Vector2s cell_index = get_cell_index_from_position(system->buffer_region, font, frame_input->mouse_position);
+            ASSERT(cell_index.x >= 0 && cell_index.y >= 0);
+
+                destroy_extra_cursors(buffer);
+            if (buffer->cursor_count > 0) {
+                EditorCursor* cursor = &buffer->cursors[0];
+
+                u32 view_line_index   = system->view_line_index   ? *system->view_line_index   : 0;
+                u32 view_column_index = system->view_column_index ? *system->view_column_index : 0;
+
+                // @Incomplete: This doesn't take into account that previous lines might have been wrapped.
+                usize line_offset = get_line_offset_from_index(buffer, view_line_index + cell_index.y);
+                usize new_cursor_offset = get_column_offset(buffer, font, tab_size, line_offset,
+                                                            view_column_index + cell_index.x);
+
+                SyncTrail sync_trail = frame_input->mouse_buttons[MouseButton_Left].was_pressed_this_frame
+                                            ? SyncTrail::YES
+                                            : SyncTrail::NO;
+                set_cursor_offset(buffer, font, tab_size, view_column_count, cursor, new_cursor_offset,
+                                  sync_trail, UpdateDesiredColumn::YES);
             }
         }
     }

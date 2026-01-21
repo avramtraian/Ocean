@@ -161,6 +161,14 @@ rect_intersect(Rect2D a, Rect2D b)
 }
 
 inline bool
+is_inside_rect(Rect2D rect, Vector2s point)
+{
+    bool result = (rect.min.x <= point.x && point.x < rect.max.x) &&
+                  (rect.min.y <= point.y && point.y < rect.max.y);
+    return result;
+}
+
+inline bool
 is_degenerated(Rect2D rectangle)
 {
     const bool result = (rectangle.min.x >= rectangle.max.x) ||

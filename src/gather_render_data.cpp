@@ -3,31 +3,6 @@
  * This file is part of my personal text editor and is distributed under the MIT license.
  */
 
-internal usize
-get_line_offset_from_index(EditorBuffer* buffer, u32 line_index)
-{
-    if (line_index == 0)
-        return 0;
-
-    u32 current_line_index = 0;
-    usize current_byte_offset = 0;
-    
-    while (current_byte_offset < buffer->size) {
-        if (buffer->data[current_byte_offset] == '\n') {
-            ++current_line_index;
-
-            if (current_line_index == line_index) {
-                usize line_offset = current_byte_offset + sizeof('\n');
-                return line_offset;
-            }
-        }
-
-        ++current_byte_offset;
-    }
-
-    return buffer->size;
-}
-
 internal GlyphRenderData*
 push_glyph_to_line(LineRenderData* line_render_data)
 {
