@@ -31,10 +31,13 @@ ensure_capacity(EditorBuffer* buffer, usize capacity)
 }
 
 internal void
-insert_in_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+insert_in_buffer(EditorBufferView* buffer_view, Font* font, u32 tab_size, u32 visible_column_count,
                  usize insertion_offset, void* inserted_data, usize inserted_data_size)
 {
+    EditorBuffer* buffer = buffer_view->buffer;
+
     ASSERT(insertion_offset <= buffer->size);
+
     ensure_capacity(buffer, buffer->size + inserted_data_size);
     
     // Insert the data into the buffer.
@@ -45,8 +48,8 @@ insert_in_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_col
     buffer->size += inserted_data_size;
 
     // Update cursor offsets.
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        EditorCursor* cursor = buffer->cursors + cursor_index;
+    for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+        EditorCursor* cursor = buffer_view->cursors + cursor_index;
         
         // Update the tail offset.
         if (cursor->tail_offset >= insertion_offset)
@@ -63,9 +66,11 @@ insert_in_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_col
 }
 
 internal void
-remove_from_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+remove_from_buffer(EditorBufferView* buffer_view, Font* font, u32 tab_size, u32 visible_column_count,
                    usize remove_offset, usize removed_data_size)
 {
+    EditorBuffer* buffer = buffer_view->buffer;
+
     ASSERT(remove_offset <= buffer->size);
     ASSERT(removed_data_size <= buffer->size);
     ASSERT(remove_offset + removed_data_size <= buffer->size);
@@ -77,8 +82,8 @@ remove_from_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_c
     buffer->size -= removed_data_size;
 
     // Update cursor offsets.
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        EditorCursor* cursor = buffer->cursors + cursor_index;
+    for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+        EditorCursor* cursor = buffer_view->cursors + cursor_index;
         
         // Update the tail offset.
         if (cursor->tail_offset > remove_offset)
@@ -95,35 +100,36 @@ remove_from_buffer(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_c
 }
 
 internal void
-clear_buffer(EditorBuffer* buffer)
+clear_buffer(EditorBufferView* buffer_view)
 {
+    EditorBuffer* buffer = buffer_view->buffer;
     buffer->size = 0;
 
-    if (buffer->cursor_count == 0)
+    if (buffer_view->cursor_count == 0)
         return;
 
-    buffer->cursor_count = 1;
-    buffer->cursors[0].head_offset = 0;
-    buffer->cursors[0].tail_offset = 0;
-    buffer->cursors[0].desired_column_index = 0;
+    buffer_view->cursor_count = 1;
+    buffer_view->cursors[0].head_offset = 0;
+    buffer_view->cursors[0].tail_offset = 0;
+    buffer_view->cursors[0].desired_column_index = 0;
 }
 
 internal void
-delete_cursor_selection_range(EditorBuffer* buffer, Font* font, u32 tab_size, u32 visible_column_count,
+delete_cursor_selection_range(EditorBufferView* buffer_view, Font* font, u32 tab_size, u32 visible_column_count,
                               EditorCursor* cursor)
 {
     if (cursor->head_offset != cursor->tail_offset) {
         CursorSelectionRange selection = get_selection_range(cursor);
-        remove_from_buffer(buffer, font, tab_size, visible_column_count,
+        remove_from_buffer(buffer_view, font, tab_size, visible_column_count,
                            selection.start_offset, selection.end_offset - selection.start_offset);
 
-        set_cursor_offset(buffer, font, tab_size, visible_column_count,
+        set_cursor_offset(buffer_view->buffer, font, tab_size, visible_column_count,
                           cursor, selection.start_offset, SyncTrail::YES, UpdateDesiredColumn::YES);
     }
 }
 
 struct InsertionSystem {
-    EditorBuffer* buffer;
+    EditorBufferView* buffer_view;
     u32 view_column_count;
     Font* font;
     u32 tab_size;
@@ -133,13 +139,15 @@ struct InsertionSystem {
 internal void
 update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
 {
-    EditorBuffer* buffer            = system->buffer;
-    u32           view_column_count = system->view_column_count;
-    Font*         font              = system->font;
-    u32           tab_size          = system->tab_size;
+    EditorBufferView* buffer_view       = system->buffer_view;
+    u32               view_column_count = system->view_column_count;
+    Font*             font              = system->font;
+    u32               tab_size          = system->tab_size;
 
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        EditorCursor* cursor = buffer->cursors + cursor_index;
+    EditorBuffer* buffer = buffer_view->buffer;
+
+    for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+        EditorCursor* cursor = buffer_view->cursors + cursor_index;
 
         // Handle char events:
         for (u32 event_index = 0; event_index < frame_input->char_event_count; ++event_index) {
@@ -147,16 +155,16 @@ update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
             Utf8EncodeResult encode = utf8_encode(codepoint);
             if (!encode.is_valid) continue;
 
-            delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
-            insert_in_buffer(buffer, font, TAB_SIZE, view_column_count,
+            delete_cursor_selection_range(buffer_view, font, TAB_SIZE, view_column_count, cursor);
+            insert_in_buffer(buffer_view, font, TAB_SIZE, view_column_count,
                              cursor->head_offset, encode.data, encode.byte_width);
         }
 
         // Handle new-line input:
         if (system->allow_new_lines) {
             for (u32 i = 0; i < frame_input->keys[KeyCode_Enter].event_count; ++i) {
-                delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
-                insert_in_buffer(buffer, font, TAB_SIZE, view_column_count,
+                delete_cursor_selection_range(buffer_view, font, TAB_SIZE, view_column_count, cursor);
+                insert_in_buffer(buffer_view, font, TAB_SIZE, view_column_count,
                                  cursor->head_offset, "\n", sizeof('\n'));
             }
         }
@@ -167,8 +175,8 @@ update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
 
         // Handle tab input:
         for (u32 i = 0; i < frame_input->keys[KeyCode_Tab].event_count; ++i) {
-            delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
-            insert_in_buffer(buffer, font, TAB_SIZE, view_column_count,
+            delete_cursor_selection_range(buffer_view, font, TAB_SIZE, view_column_count, cursor);
+            insert_in_buffer(buffer_view, font, TAB_SIZE, view_column_count,
                              cursor->head_offset, "\t", sizeof('\t'));
         }
 
@@ -179,7 +187,7 @@ update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
                                  cursor, IsSelecting::YES, delete_whole_word);
             }
 
-            delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
+            delete_cursor_selection_range(buffer_view, font, TAB_SIZE, view_column_count, cursor);
         }
 
         // Handle delete:
@@ -189,7 +197,7 @@ update_insertion_system(InsertionSystem* system, FrameInput* frame_input)
                                   cursor, IsSelecting::YES, delete_whole_word);
             }
 
-            delete_cursor_selection_range(buffer, font, TAB_SIZE, view_column_count, cursor);
+            delete_cursor_selection_range(buffer_view, font, TAB_SIZE, view_column_count, cursor);
         }
     }
 }

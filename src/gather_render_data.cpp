@@ -19,22 +19,21 @@ push_glyph_to_line(LineRenderData* line_render_data)
 }
 
 internal void
-gather_buffer_render_data(EditorBuffer* buffer, Font* font,
-                          u32 view_cell_count_x, u32 view_cell_count_y,
-                          u32 view_line_index, u32 view_column_index)
+gather_buffer_render_data(EditorBufferRenderData* render_data, EditorBufferView* buffer_view,
+                          u32 view_cell_count_x, u32 view_cell_count_y)
 {
-    EditorBufferRenderData* render_data = &buffer->render_data;
     ZERO_STRUCT_POINTER(render_data);
+    EditorBuffer* buffer = buffer_view->buffer;
 
     if (view_cell_count_x > 0 && view_cell_count_y > 0) {
-        render_data->first_column_index = view_column_index;
+        render_data->first_column_index = buffer_view->view_column_index;
         render_data->line_count = view_cell_count_y + 2;
         render_data->lines = PUSH_ARRAY(g_arenas.frame, LineRenderData, render_data->line_count);
 
         u32 cell_index_x = 0;
         u32 cell_index_y = 0;
 
-        usize view_byte_offset = get_line_offset_from_index(buffer, view_line_index);
+        usize view_byte_offset = get_line_offset_from_index(buffer, buffer_view->view_line_index);
         Utf8Iterator iterator = utf8_iterator(buffer->data + view_byte_offset, buffer->size - view_byte_offset);
         for (;
              is_in_range(iterator) && cell_index_y < render_data->line_count;
@@ -45,12 +44,12 @@ gather_buffer_render_data(EditorBuffer* buffer, Font* font,
             bool is_inside_selection_range = false;
             bool should_render_cursor      = false;
             usize codepoint_byte_offset = view_byte_offset + iterator.offset;
-            for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-                CursorSelectionRange range = get_selection_range(buffer->cursors + cursor_index);
+            for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+                CursorSelectionRange range = get_selection_range(buffer_view->cursors + cursor_index);
                 if (range.start_offset <= codepoint_byte_offset && codepoint_byte_offset < range.end_offset)
                     is_inside_selection_range = true;
 
-                if (buffer->cursors[cursor_index].head_offset == codepoint_byte_offset)
+                if (buffer_view->cursors[cursor_index].head_offset == codepoint_byte_offset)
                     should_render_cursor = true;
             }
 
@@ -118,8 +117,8 @@ gather_buffer_render_data(EditorBuffer* buffer, Font* font,
             // the buffer.
 
             bool cursor_is_at_end_of_buffer = false;
-            for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-                if (buffer->cursors[cursor_index].head_offset == buffer->size) {
+            for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+                if (buffer_view->cursors[cursor_index].head_offset == buffer->size) {
                     cursor_is_at_end_of_buffer = true;
                     break;
                 }
@@ -155,10 +154,11 @@ generate_line_render_data(LineRenderData* render_data, String text, LinearColor 
 }
 
 internal void
-generate_line_render_data(LineRenderData* render_data, EditorBuffer* buffer, Font* font, u32 tab_size,
+generate_line_render_data(LineRenderData* render_data, EditorBufferView* buffer_view, Font* font, u32 tab_size,
                           LinearColor foreground, LinearColor background, LinearColor selected_background)
 {
     ASSERT(tab_size > 0);
+    EditorBuffer* buffer = buffer_view->buffer;
     
     u32 current_column_index = 0;
     for (Utf8Iterator iterator = utf8_iterator(buffer->data, buffer->size);
@@ -167,15 +167,15 @@ generate_line_render_data(LineRenderData* render_data, EditorBuffer* buffer, Fon
     {
         bool is_inside_selection_range = false;
         bool should_render_cursor = false;
-        for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-            EditorCursor* cursor = buffer->cursors + cursor_index;
+        for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+            EditorCursor* cursor = buffer_view->cursors + cursor_index;
             usize start_offset = min(cursor->head_offset, cursor->tail_offset);
             usize end_offset   = max(cursor->head_offset, cursor->tail_offset);
 
             if (start_offset <= iterator.offset && iterator.offset < end_offset)
                 is_inside_selection_range = true;
 
-            if (buffer->cursors[cursor_index].head_offset == iterator.offset)
+            if (buffer_view->cursors[cursor_index].head_offset == iterator.offset)
                 should_render_cursor = true;
         }
 
@@ -200,8 +200,8 @@ generate_line_render_data(LineRenderData* render_data, EditorBuffer* buffer, Fon
     }
 
     bool cursor_is_at_end_of_buffer = false;
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        if (buffer->cursors[cursor_index].head_offset == buffer->size) {
+    for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+        if (buffer_view->cursors[cursor_index].head_offset == buffer->size) {
             cursor_is_at_end_of_buffer = true;
             break;
         }
@@ -226,19 +226,21 @@ gather_titlebar_render_data(EditorPanel* panel)
     ZERO_STRUCT_POINTER(buffer_name_render_data);
     ZERO_STRUCT_POINTER(cursor_info_render_data);
 
-    generate_line_render_data(buffer_name_render_data, panel->buffer_name,
+    generate_line_render_data(buffer_name_render_data, panel->buffer_view->buffer->name,
                               TITLEBAR_FOREGROUND_COLOR, TITLEBAR_BACKGROUND_COLOR);
 
-    EditorBuffer* content_buffer = &panel->content_buffer;
+    EditorBufferView* buffer_view = panel->buffer_view;
+    EditorBuffer* buffer = buffer_view->buffer;
+
     char cursor_info_buffer[256] = {};
     String cursor_info = {};
 
-    if (content_buffer->cursor_count == 1) {
+    if (buffer_view->cursor_count == 1) {
         u32 max_cell_index_x = 0;
         u32 max_cell_index_y = 0;
         u32 current_cell_index_x = 0;
 
-        for (Utf8Iterator iterator = utf8_iterator(content_buffer->data, content_buffer->size);
+        for (Utf8Iterator iterator = utf8_iterator(buffer->data, buffer->size);
              is_in_range(iterator);
              advance(&iterator))
         {
@@ -271,8 +273,8 @@ gather_titlebar_render_data(EditorPanel* panel)
         int column_min_size = string_from_number(max_cell_index_x + 1).size;
         int line_min_size   = string_from_number(max_cell_index_y + 1).size;
 
-        EditorCursor* cursor = &content_buffer->cursors[0];
-        CursorPosition position = get_cursor_position(content_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+        EditorCursor* cursor = &buffer_view->cursors[0];
+        CursorPosition position = get_cursor_position(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
                                                       cursor->head_offset);
 
         if (cursor->head_offset == cursor->tail_offset) {
@@ -291,10 +293,10 @@ gather_titlebar_render_data(EditorPanel* panel)
                                 bytes_selected, bytes_suffix);
             cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
         }
-    } else if (content_buffer->cursor_count > 1) {
+    } else if (buffer_view->cursor_count > 1) {
         int bytes_selected = 0;
-        for (u32 index = 0; index < content_buffer->cursor_count; index++) {
-            EditorCursor* cursor = content_buffer->cursors + index;
+        for (u32 index = 0; index < buffer_view->cursor_count; index++) {
+            EditorCursor* cursor = buffer_view->cursors + index;
             CursorSelectionRange selection_range = get_selection_range(cursor);
             bytes_selected += selection_range.end_offset - selection_range.start_offset; // @Overflow!
         }
@@ -302,12 +304,12 @@ gather_titlebar_render_data(EditorPanel* panel)
 
         if (bytes_selected > 0) {
             int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "%d cursors, %d byte%s selected",
-                                content_buffer->cursor_count,
+                                buffer_view->cursor_count,
                                 bytes_selected, bytes_suffix);
             cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
         } else {
             int size = snprintf(cursor_info_buffer, sizeof(cursor_info_buffer), "%d cursors",
-                                content_buffer->cursor_count);
+                                buffer_view->cursor_count);
             cursor_info = initialize_string((u8*)cursor_info_buffer, size, StringSource_Literal);
         }
     }
@@ -327,7 +329,7 @@ internal void
 gather_console_render_data_insert_command_name(EditorState* state)
 {
     LineRenderData* render_data = &state->console_render_data;
-    generate_line_render_data(render_data, &state->console_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+    generate_line_render_data(render_data, &state->console_buffer_view, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
                               CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR, CONSOLE_BACKGROUND_SELECTED_COLOR);
 }
 
@@ -335,7 +337,8 @@ internal void
 gather_console_render_data_insert_command_arguments(EditorState* state)
 {
     LineRenderData* render_data = &state->console_render_data;
-    EditorBuffer* buffer = &state->console_buffer;
+    EditorBufferView* buffer_view = &state->console_buffer_view;
+    EditorBuffer* buffer = buffer_view->buffer;
 
     // Generate the render data for the command name.
     ASSERT(state->active_command != NULL);
@@ -344,7 +347,7 @@ gather_console_render_data_insert_command_arguments(EditorState* state)
     generate_line_render_data(render_data, STRING_LIT(": "), CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR);
 
     // Generate the render data for the command arguments written by the user.
-    generate_line_render_data(render_data, &state->console_buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
+    generate_line_render_data(render_data, &state->console_buffer_view, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
                               CONSOLE_FOREGROUND_COLOR, CONSOLE_BACKGROUND_COLOR, CONSOLE_BACKGROUND_SELECTED_COLOR);
 }
 
@@ -370,9 +373,8 @@ gather_render_data(EditorState* state)
     u32 view_cell_count_y = (rect_size_y(layout.content_region) + font_text->line_gap) / font_text->line_height;
     
     EditorPanel* panel = &state->first_panel;
-    gather_buffer_render_data(&panel->content_buffer, font_text,
-                              view_cell_count_x, view_cell_count_y,
-                              panel->content_view_line_index, panel->content_view_column_index);
+    gather_buffer_render_data(&panel->buffer_render_data, panel->buffer_view,
+                              view_cell_count_x, view_cell_count_y);
 
     gather_titlebar_render_data(&state->first_panel);
     gather_console_render_data(state);

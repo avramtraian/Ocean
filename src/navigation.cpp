@@ -584,11 +584,11 @@ merge_overlapping_cursors(EditorCursor* cursors, u32 cursor_count)
 }
 
 internal u32
-spawn_cursor_at_offset(EditorBuffer* buffer, usize cursor_byte_offset, u32 desired_column_index)
+spawn_cursor_at_offset(EditorBufferView* buffer_view, usize cursor_byte_offset, u32 desired_column_index)
 {
-    ASSERT(buffer->cursor_count < buffer->cursor_allocated_count); // @Incomplete!
-    u32 cursor_index = buffer->cursor_count++;
-    EditorCursor* cursor = buffer->cursors + cursor_index;
+    ASSERT(buffer_view->cursor_count < buffer_view->cursor_allocated_count); // @Incomplete!
+    u32 cursor_index = buffer_view->cursor_count++;
+    EditorCursor* cursor = buffer_view->cursors + cursor_index;
 
     cursor->head_offset = cursor_byte_offset;
     cursor->tail_offset = cursor_byte_offset;
@@ -598,25 +598,22 @@ spawn_cursor_at_offset(EditorBuffer* buffer, usize cursor_byte_offset, u32 desir
 }
 
 internal void
-destroy_extra_cursors(EditorBuffer* buffer)
+destroy_extra_cursors(EditorBufferView* buffer_view)
 {
-    if (buffer->cursor_count == 0)
+    if (buffer_view->cursor_count == 0)
         return;
 
     // Destroy all but the first cursor. Note that there is nothing special to the first cursor, but
     // this makes the implementation trivial and the user usually doesn't care about which cursor
     // remains alive (hopefully?).
-    buffer->cursor_count = 1;
+    buffer_view->cursor_count = 1;
 }
 
 struct NavigationSystem {
-    EditorBuffer* buffer;
+    EditorBufferView* buffer_view;
     u32 view_column_count;
     Font* font;
     u32 tab_size;
-
-    u32* view_column_index; // If valid, it will contain the updated value.
-    u32* view_line_index; // If valid, it will contain the updated value.
 
     bool allow_mouse_cursor;
     Rect2D buffer_region;
@@ -646,15 +643,17 @@ get_cell_index_from_position(Rect2D region, Font* font, Vector2s position)
 internal void
 update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
 {
-    EditorBuffer* buffer = system->buffer;
-    u32 view_column_count = system->view_column_count;
-    Font* font = system->font;
-    u32 tab_size = system->tab_size;
+    EditorBufferView* buffer_view       = system->buffer_view;
+    u32               view_column_count = system->view_column_count;
+    Font*             font              = system->font;
+    u32               tab_size          = system->tab_size;
+
+    EditorBuffer* buffer = buffer_view->buffer;
 
     // Move the existing cursors:
     {
-        EditorCursor* cursors = buffer->cursors;
-        u32 cursor_count = buffer->cursor_count;
+        EditorCursor* cursors = buffer_view->cursors;
+        u32 cursor_count = buffer_view->cursor_count;
 
         IsSelecting cursor_is_selecting = (frame_input->keys[KeyCode_Shift].is_down)
                                             ? IsSelecting::YES
@@ -709,18 +708,15 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
         if (is_inside_rect(system->buffer_region, frame_input->mouse_position)) {
             Vector2s cell_index = get_cell_index_from_position(system->buffer_region, font, frame_input->mouse_position);
             ASSERT(cell_index.x >= 0 && cell_index.y >= 0);
-
-                destroy_extra_cursors(buffer);
-            if (buffer->cursor_count > 0) {
-                EditorCursor* cursor = &buffer->cursors[0];
-
-                u32 view_line_index   = system->view_line_index   ? *system->view_line_index   : 0;
-                u32 view_column_index = system->view_column_index ? *system->view_column_index : 0;
+            destroy_extra_cursors(buffer_view);
+            
+            if (buffer_view->cursor_count > 0) {
+                EditorCursor* cursor = &buffer_view->cursors[0];
 
                 // @Incomplete: This doesn't take into account that previous lines might have been wrapped.
-                usize line_offset = get_line_offset_from_index(buffer, view_line_index + cell_index.y);
+                usize line_offset = get_line_offset_from_index(buffer, buffer_view->view_line_index + cell_index.y);
                 usize new_cursor_offset = get_column_offset(buffer, font, tab_size, line_offset,
-                                                            view_column_index + cell_index.x);
+                                                            buffer_view->view_column_index + cell_index.x);
 
                 SyncTrail sync_trail = frame_input->mouse_buttons[MouseButton_Left].was_pressed_this_frame
                                             ? SyncTrail::YES
@@ -733,17 +729,17 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
 
     // Spawn new cursors:
     {
-        if (buffer->cursor_count > 0 &&
+        if (buffer_view->cursor_count > 0 &&
             frame_input->keys[KeyCode_Control].is_down &&
             frame_input->keys[KeyCode_Alt].is_down)
         {
             for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i) {
-                u32 src_cursor_index = buffer->cursor_count - 1;
-                EditorCursor* src_cursor = buffer->cursors + src_cursor_index;
+                u32 src_cursor_index = buffer_view->cursor_count - 1;
+                EditorCursor* src_cursor = buffer_view->cursors + src_cursor_index;
 
-                u32 new_cursor_index = spawn_cursor_at_offset(buffer, src_cursor->head_offset, 
+                u32 new_cursor_index = spawn_cursor_at_offset(buffer_view, src_cursor->head_offset, 
                                                               src_cursor->desired_column_index);
-                EditorCursor* new_cursor = buffer->cursors + new_cursor_index;
+                EditorCursor* new_cursor = buffer_view->cursors + new_cursor_index;
                 move_cursor_down(buffer, font, tab_size, view_column_count, new_cursor, IsSelecting::NO);
             }
         }
@@ -751,38 +747,35 @@ update_navigation_system(NavigationSystem* system, FrameInput* frame_input)
 
     // Destroy cursors:
     {
-        EditorCursor* cursors = buffer->cursors;
-        u32 cursor_count = buffer->cursor_count;
+        EditorCursor* cursors = buffer_view->cursors;
+        u32 cursor_count = buffer_view->cursor_count;
 
         u32 new_cursor_count = merge_overlapping_cursors(cursors, cursor_count);
-        buffer->cursor_count = new_cursor_count;
+        buffer_view->cursor_count = new_cursor_count;
 
         if (frame_input->keys[KeyCode_Escape].was_pressed_this_frame)
-            destroy_extra_cursors(buffer);
+            destroy_extra_cursors(buffer_view);
     }
 
     // Move buffer view:
-    if (system->view_line_index != NULL) {
+    {
         u32 buffer_line_count = get_number_of_lines(buffer->data, buffer->size);
-        if (system->view_line_index != NULL &&
-            frame_input->keys[KeyCode_Control].is_down &&
+        if (frame_input->keys[KeyCode_Control].is_down &&
             !frame_input->keys[KeyCode_Alt].is_down)
         {
             for (u32 i = 0; i < frame_input->keys[KeyCode_Down].event_count; ++i)
-                *system->view_line_index = clamp<s32>((s32)*system->view_line_index + 1, 0, buffer_line_count - 1);
+                buffer_view->view_line_index = clamp<s32>((s32)buffer_view->view_line_index + 1, 0, buffer_line_count - 1);
             
             for (u32 i = 0; i < frame_input->keys[KeyCode_Up].event_count; ++i)
-                *system->view_line_index = clamp<s32>((s32)*system->view_line_index - 1, 0, buffer_line_count - 1);
+                buffer_view->view_line_index = clamp<s32>((s32)buffer_view->view_line_index - 1, 0, buffer_line_count - 1);
         }
 
-        s32 new_view_line_index = *system->view_line_index;
+        s32 new_view_line_index = buffer_view->view_line_index;
         new_view_line_index -= frame_input->mouse_wheel_vertical_scroll * MOUSE_V_WHEEL_SCROLL_JUMP;
-        *system->view_line_index = clamp<s32>(new_view_line_index, 0, buffer_line_count - 1);
-    }
+        buffer_view->view_line_index = clamp<s32>(new_view_line_index, 0, buffer_line_count - 1);
 
-    if (system->view_column_index != NULL) {
-        s32 new_view_column_index = *system->view_column_index;
+        s32 new_view_column_index = buffer_view->view_column_index;
         new_view_column_index += frame_input->mouse_wheel_horizontal_scroll * MOUSE_H_WHEEL_SCROLL_JUMP;
-        *system->view_column_index = clamp_non_zero(new_view_column_index);
+        buffer_view->view_column_index = clamp_non_zero(new_view_column_index);
     }
 }

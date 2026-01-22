@@ -15,27 +15,27 @@ post_console_message(EditorState* state, String message)
 //
 
 internal TerminateCommand
-cmd_center_view(EditorState* state, EditorPanel* panel)
+cmd_center_view(EditorState* state, EditorBufferView* buffer_view)
 {
-    EditorBuffer* buffer = &panel->content_buffer;
-    ASSERT(buffer->cursor_count > 0);
+    EditorBuffer* buffer = buffer_view->buffer;
+    ASSERT(buffer_view->cursor_count > 0);
 
-    EditorCursor* cursor = &buffer->cursors[0];
-    for (u32 cursor_index = 0; cursor_index < buffer->cursor_count; ++cursor_index) {
-        if (buffer->cursors[cursor_index].head_offset < cursor->head_offset)
-            cursor = buffer->cursors + cursor_index;
+    EditorCursor* cursor = &buffer_view->cursors[0];
+    for (u32 cursor_index = 0; cursor_index < buffer_view->cursor_count; ++cursor_index) {
+        if (buffer_view->cursors[cursor_index].head_offset < cursor->head_offset)
+            cursor = buffer_view->cursors + cursor_index;
     }
 
     CursorPosition cursor_position = get_cursor_position(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE,
                                                          cursor->head_offset);
-    Vector2u view_cell_count = get_content_view_cell_count(state, panel);
+    Vector2u view_cell_count = get_content_view_cell_count(state, buffer_view);
 
     // @Incomplete: This doesn't take into account previous lines that might require multiple rendering lines
     // to be rendered. This will cause the line on which the cursor is on to not be perfectly centered
     // in the best cases, or not visible at all in the worst... (18th January 2026)
     s32 content_view_line_index = (s32)cursor_position.line_index - (s32)(view_cell_count.y / 2);
     content_view_line_index = clamp_non_zero(content_view_line_index);
-    panel->content_view_line_index = content_view_line_index;
+    buffer_view->view_line_index = content_view_line_index;
 
     post_console_message(state, STRING_LIT("Centered view."));
     return TerminateCommand::YES;
@@ -45,25 +45,25 @@ internal COMMAND_FRONTEND(cmd_center_view_frontend)
 {
     ASSERT(arguments.size == 0);
     ASSERT(state->active_panel != NULL);
-    return cmd_center_view(state, state->active_panel);
+    return cmd_center_view(state, state->active_panel->buffer_view);
 }
 
 internal TerminateCommand
-cmd_center_cursor(EditorState* state, EditorPanel* panel)
+cmd_center_cursor(EditorState* state, EditorBufferView* buffer_view)
 {
-    EditorBuffer* buffer = &panel->content_buffer;
-    Vector2u view_cell_count = get_content_view_cell_count(state, panel);
+    EditorBuffer* buffer = buffer_view->buffer;
+    Vector2u view_cell_count = get_content_view_cell_count(state, buffer_view);
 
-    destroy_extra_cursors(buffer);
-    ASSERT(buffer->cursor_count > 0);
+    destroy_extra_cursors(buffer_view);
+    ASSERT(buffer_view->cursor_count > 0);
 
     // @Incomplete: This doesn't take into account lines that might require multiple rendering lines
     // to be rendered. This will cause the line on which the cursor is on to not be perfectly centered
     // in the best cases, or not visible at all in the worst... (18th January 2026)
-    u32 new_cursor_line = panel->content_view_line_index + (view_cell_count.y / 2);
+    u32 new_cursor_line = buffer_view->view_line_index + (view_cell_count.y / 2);
     usize new_cursor_offset = get_line_offset_from_index(buffer, new_cursor_line);
 
-    EditorCursor* cursor = &buffer->cursors[0];
+    EditorCursor* cursor = &buffer_view->cursors[0];
     set_cursor_offset(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE, view_cell_count.x,
                       cursor, new_cursor_offset, SyncTrail::YES, UpdateDesiredColumn::YES);
     return TerminateCommand::YES;
@@ -73,28 +73,28 @@ internal COMMAND_FRONTEND(cmd_center_cursor_frontend)
 {
     ASSERT(arguments.size == 0);
     ASSERT(state->active_panel != NULL);
-    return cmd_center_cursor(state, state->active_panel);
+    return cmd_center_cursor(state, state->active_panel->buffer_view);
 }
 
 internal TerminateCommand
-cmd_page_down(EditorState* state, EditorPanel* panel)
+cmd_page_down(EditorState* state, EditorBufferView* buffer_view)
 {
-    EditorBuffer* buffer = &panel->content_buffer;
-    Vector2u view_cell_count = get_content_view_cell_count(state, panel);
+    EditorBuffer* buffer = buffer_view->buffer;
+    Vector2u view_cell_count = get_content_view_cell_count(state, buffer_view);
 
-    usize current_line_offset = get_line_offset_from_index(buffer, panel->content_view_line_index);
+    usize current_line_offset = get_line_offset_from_index(buffer, buffer_view->view_line_index);
     u32 render_line_count = 0;
     while (render_line_count < view_cell_count.y &&
            current_line_offset < buffer->size)
     {
         u32 column_count = get_line_column_count(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE, current_line_offset);
         render_line_count += (column_count + view_cell_count.x - 1) / view_cell_count.x;
-        panel->content_view_line_index++;
+        buffer_view->view_line_index++;
 
         current_line_offset = get_next_line_offset(buffer, current_line_offset);
     }
 
-    cmd_center_cursor(state, panel);
+    cmd_center_cursor(state, buffer_view);
     return TerminateCommand::YES;
 }
 
@@ -102,32 +102,32 @@ internal COMMAND_FRONTEND(cmd_page_down_frontend)
 {
     ASSERT(arguments.size == 0);
     ASSERT(state->active_panel != NULL);
-    return cmd_page_down(state, state->active_panel);
+    return cmd_page_down(state, state->active_panel->buffer_view);
 }
 
 internal TerminateCommand
-cmd_page_up(EditorState* state, EditorPanel* panel)
+cmd_page_up(EditorState* state, EditorBufferView* buffer_view)
 {
-    EditorBuffer* buffer = &panel->content_buffer;
-    Vector2u view_cell_count = get_content_view_cell_count(state, panel);
+    EditorBuffer* buffer = buffer_view->buffer;
+    Vector2u view_cell_count = get_content_view_cell_count(state, buffer_view);
 
-    usize current_line_offset = get_line_offset_from_index(buffer, panel->content_view_line_index);
+    usize current_line_offset = get_line_offset_from_index(buffer, buffer_view->view_line_index);
     if (current_line_offset == 0)
         return TerminateCommand::YES;
     current_line_offset = get_previous_line_offset(buffer, current_line_offset);
 
     u32 render_line_count = 0;
     while (render_line_count < view_cell_count.y &&
-           panel->content_view_line_index > 0)
+           buffer_view->view_line_index > 0)
     {
         u32 column_count = get_line_column_count(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE, current_line_offset);
         render_line_count += (column_count + view_cell_count.x - 1) / view_cell_count.x;
         
-        panel->content_view_line_index--;
+        buffer_view->view_line_index--;
         current_line_offset = get_previous_line_offset(buffer, current_line_offset);
     }
 
-    cmd_center_cursor(state, panel);
+    cmd_center_cursor(state, buffer_view);
     return TerminateCommand::YES;
 }
 
@@ -135,22 +135,22 @@ internal COMMAND_FRONTEND(cmd_page_up_frontend)
 {
     ASSERT(arguments.size == 0);
     ASSERT(state->active_panel != NULL);
-    return cmd_page_up(state, state->active_panel);
+    return cmd_page_up(state, state->active_panel->buffer_view);
 }
 
 internal TerminateCommand
-cmd_goto_line(EditorState* state, EditorPanel* panel, u32 line_index)
+cmd_goto_line(EditorState* state, EditorBufferView* buffer_view, u32 line_index)
 {
-    EditorBuffer* buffer = &panel->content_buffer;
-    destroy_extra_cursors(buffer);
-    ASSERT(buffer->cursor_count == 1);
+    EditorBuffer* buffer = buffer_view->buffer;
+    destroy_extra_cursors(buffer_view);
+    ASSERT(buffer_view->cursor_count == 1);
 
     usize offset = get_line_offset_from_index(buffer, line_index);
     ASSERT(offset <= buffer->size);
 
     set_cursor_offset(buffer, font_from_id(FontID::TEXT_REGULAR), TAB_SIZE, MAX_WRAP_COLUMN_COUNT,
-                      &buffer->cursors[0], offset, SyncTrail::YES, UpdateDesiredColumn::YES);
-    cmd_center_view(state, panel);
+                      &buffer_view->cursors[0], offset, SyncTrail::YES, UpdateDesiredColumn::YES);
+    cmd_center_view(state, buffer_view);
 
     post_console_message(state, STRING_LIT("Go to line.")); // @Incomplete: Also print the line number.
     return TerminateCommand::YES;
@@ -166,7 +166,7 @@ internal COMMAND_FRONTEND(cmd_goto_line_frontend)
 
     u32 line_index = line_number - 1;
     ASSERT(state->active_panel != NULL);
-    return cmd_goto_line(state, state->active_panel, line_index);
+    return cmd_goto_line(state, state->active_panel->buffer_view, line_index);
 }
 
 //
@@ -174,12 +174,14 @@ internal COMMAND_FRONTEND(cmd_goto_line_frontend)
 //
 
 internal TerminateCommand
-cmd_select_all(EditorBuffer* buffer)
+cmd_select_all(EditorBufferView* buffer_view)
 {
-    destroy_extra_cursors(buffer);
+    destroy_extra_cursors(buffer_view);
     
-    if (buffer->cursor_count > 0) {
-        EditorCursor* cursor = &buffer->cursors[0];
+    if (buffer_view->cursor_count > 0) {
+        EditorBuffer* buffer = buffer_view->buffer;
+        EditorCursor* cursor = &buffer_view->cursors[0];
+
         cursor->head_offset = buffer->size;
         cursor->tail_offset = 0;
         cursor->desired_column_index = 0;
@@ -192,7 +194,7 @@ internal COMMAND_FRONTEND(cmd_select_all_frontend)
 {
     ASSERT(arguments.size == 0);
     ASSERT(state->active_panel != NULL);
-    return cmd_select_all(&state->active_panel->content_buffer);
+    return cmd_select_all(state->active_panel->buffer_view);
 }
 
 //
@@ -213,10 +215,8 @@ internal COMMAND_FRONTEND(cmd_save_file_frontend)
 }
 
 internal TerminateCommand
-cmd_save_file_as(EditorState* state, String file_name)
+cmd_save_file_as(EditorState* state, EditorBuffer* buffer, String file_name)
 {
-    EditorBuffer* buffer = &state->active_panel->content_buffer;
-
     String null_terminated_file_name = null_terminated_frame(file_name);
     if (os_write_entire_file((char*)null_terminated_file_name.data, buffer->data, buffer->size)) {
         post_console_message(state, STRING_LIT("Saved file as."));
@@ -230,32 +230,28 @@ cmd_save_file_as(EditorState* state, String file_name)
 internal COMMAND_FRONTEND(cmd_save_file_as_frontend)
 {
     String file_name = arguments;
-    return cmd_save_file_as(state, file_name);
+    ASSERT(state->active_panel != NULL);
+    return cmd_save_file_as(state, state->active_panel->buffer_view->buffer, file_name);
 }
 
 internal TerminateCommand
-cmd_open_file(EditorState* state, String file_name)
+cmd_open_file(EditorState* state, EditorBufferView* buffer_view, String file_name)
 {
     String null_terminated_file_name = null_terminated_frame(file_name);
     OSReadFileResult read_file_result = os_read_entire_file((char*)null_terminated_file_name.data);
     if (read_file_result.is_valid) {
-        // Find the active panel.
-        EditorPanel* panel = state->active_panel;
-        if (panel == NULL) {
-            state->active_panel = &state->first_panel;
-            panel = state->active_panel;
-        }
+        clear_buffer(buffer_view);
 
-        clear_buffer(&panel->content_buffer);
-        ensure_capacity(&panel->content_buffer, read_file_result.size);
+        EditorBuffer* buffer = buffer_view->buffer;
+        ensure_capacity(buffer, read_file_result.size);
 
-        panel->content_buffer.size = read_file_result.size;
-        copy_memory(panel->content_buffer.data, read_file_result.data, read_file_result.size);
+        buffer->size = read_file_result.size;
+        copy_memory(buffer->data, read_file_result.data, read_file_result.size);
         os_free_read_file_result(read_file_result);
 
-        panel->content_view_line_index = 0;
-        panel->content_view_column_index = 0;
-        panel->buffer_name = copy_string(file_name);
+        buffer_view->view_line_index = 0;
+        buffer_view->view_column_index = 0;
+        buffer->name = copy_string(file_name);
 
         post_console_message(state, STRING_LIT("Opened file."));
         return TerminateCommand::YES;
@@ -268,25 +264,25 @@ cmd_open_file(EditorState* state, String file_name)
 internal COMMAND_FRONTEND(cmd_open_file_frontend)
 {
     String file_name = arguments;
-    return cmd_open_file(state, file_name);
+    ASSERT(state->active_panel != NULL);
+    return cmd_open_file(state, state->active_panel->buffer_view, file_name);
 }
 
 internal TerminateCommand
-cmd_find_file(EditorState* state, String file_name)
+cmd_find_file(EditorState* state, EditorBufferView* buffer_view, String file_name)
 {
     String absolute_file_name = {};
 
     // @Cleanup @Incomplete @FixMe
     absolute_file_name = concat_frame(STRING_LIT("C:/Dev/editor3/src/"), file_name);
-    if (cmd_open_file(state, absolute_file_name) == TerminateCommand::YES) return TerminateCommand::YES;
-
-    return TerminateCommand::NO;
+    return cmd_open_file(state, buffer_view, absolute_file_name);
 }
 
 internal COMMAND_FRONTEND(cmd_find_file_frontend)
 {
     String file_name = arguments;
-    return cmd_find_file(state, file_name);
+    ASSERT(state->active_panel != NULL);
+    return cmd_find_file(state, state->active_panel->buffer_view, file_name);
 }
 
 internal void
@@ -302,7 +298,7 @@ execute_active_command(EditorState* state)
     TerminateCommand terminate_command = command->execute(state, arguments);
 
     if (terminate_command == TerminateCommand::YES) {
-        clear_buffer(&state->console_buffer);
+        clear_buffer(&state->console_buffer_view);
         state->active_command = NULL;
         state->console_state = ConsoleState::SHOW_MESSAGE;
     }
@@ -313,7 +309,7 @@ launch_command(EditorState* state, EditorCommand* command)
 {
     state->console_state = ConsoleState::INSERT_COMMAND_ARGUMENTS;
     state->active_command = command;
-    clear_buffer(&state->console_buffer);
+    clear_buffer(&state->console_buffer_view);
 
     if (!command->has_arguments)
         execute_active_command(state);
@@ -348,7 +344,7 @@ update_command_system(EditorState* state, FrameInput* frame_input)
             // Cancel the active command or cancel typing the command name.
             state->active_command = NULL;
             state->console_state = ConsoleState::SHOW_MESSAGE;
-            clear_buffer(&state->console_buffer);
+            clear_buffer(&state->console_buffer_view);
 
             post_console_message(state, STRING_LIT("Canceled command."));
             return;

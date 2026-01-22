@@ -726,33 +726,60 @@ WinMain(HINSTANCE current_instance, HINSTANCE previous_instance, LPSTR command_l
 
     editor_state.active_panel = &editor_state.first_panel;
     {
-        editor_state.first_panel.wrap_content_lines = false;
-        editor_state.first_panel.buffer_name = STRING_LIT("*unnamed*");
-        EditorBuffer* buffer = &editor_state.first_panel.content_buffer;
-        buffer->cursor_allocated_count = 16;
-        buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
-        buffer->cursor_count = 1;
-        buffer->cursors[0].tail_offset = 0;
-        buffer->cursors[0].head_offset = 0;
+        EditorBuffer* buffer = PUSH_STRUCT(g_arenas.eternal, EditorBuffer);
+        EditorBufferView* buffer_view = PUSH_STRUCT(g_arenas.eternal, EditorBufferView);
+
+        buffer_view->buffer = buffer;
+        editor_state.first_panel.buffer_view = buffer_view;
+        
+        editor_state.first_buffer = buffer;
+        editor_state.last_buffer = buffer;
+        editor_state.first_buffer_view = buffer_view;
+        editor_state.last_buffer_view = buffer_view;
+
+        buffer_view->wrap_lines = false;
+        buffer_view->cursor_allocated_count = 16;
+        buffer_view->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer_view->cursor_allocated_count);
+        buffer_view->cursor_count = 1;
+        buffer_view->cursors[0].tail_offset = 0;
+        buffer_view->cursors[0].head_offset = 0;
+        buffer_view->buffer->name = STRING_LIT("*unnamed*");
     }
 
     {
-        editor_state.second_panel.wrap_content_lines = false;
-        editor_state.second_panel.buffer_name = STRING_LIT("*unnamed*");
-        EditorBuffer* buffer = &editor_state.second_panel.content_buffer;
-        buffer->cursor_allocated_count = 16;
-        buffer->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer->cursor_allocated_count);
-        buffer->cursor_count = 1;
-        buffer->cursors[0].tail_offset = 0;
-        buffer->cursors[0].head_offset = 0;
+        EditorBuffer* buffer = PUSH_STRUCT(g_arenas.eternal, EditorBuffer);
+        EditorBufferView* buffer_view = PUSH_STRUCT(g_arenas.eternal, EditorBufferView);
+
+        buffer_view->buffer = buffer;
+        editor_state.second_panel.buffer_view = buffer_view;
+
+        editor_state.last_buffer->next = buffer;
+        buffer->prev = editor_state.last_buffer;
+        editor_state.last_buffer = buffer;
+
+        editor_state.last_buffer_view->next = buffer_view;
+        buffer_view->prev = editor_state.last_buffer_view;
+        editor_state.last_buffer_view = buffer_view;
+
+        buffer_view->wrap_lines = false;
+        buffer_view->cursor_allocated_count = 16;
+        buffer_view->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer_view->cursor_allocated_count);
+        buffer_view->cursor_count = 1;
+        buffer_view->cursors[0].tail_offset = 0;
+        buffer_view->cursors[0].head_offset = 0;
+        buffer_view->buffer->name = STRING_LIT("*unnamed*");
     }
 
-    editor_state.console_buffer.cursor_allocated_count = 16;
-    editor_state.console_buffer.cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor,
-                                                     editor_state.console_buffer.cursor_allocated_count);
-    editor_state.console_buffer.cursor_count = 1;
-    editor_state.console_buffer.cursors[0].head_offset = 0;
-    editor_state.console_buffer.cursors[0].tail_offset = 0;
+    {
+        EditorBufferView* buffer_view = &editor_state.console_buffer_view;
+        buffer_view->buffer = &editor_state.console_buffer;
+
+        buffer_view->cursor_allocated_count = 16;
+        buffer_view->cursors = PUSH_ARRAY(g_arenas.eternal, EditorCursor, buffer_view->cursor_allocated_count);
+        buffer_view->cursor_count = 1;
+        buffer_view->cursors[0].head_offset = 0;
+        buffer_view->cursors[0].tail_offset = 0;
+    }
 
     g_window_should_close = false;
     while (!g_window_should_close) {

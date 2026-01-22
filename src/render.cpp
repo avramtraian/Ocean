@@ -411,7 +411,7 @@ internal void
 draw_editor_frame(EditorState* state)
 {
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-    EditorBufferRenderData* render_data = &state->first_panel.content_buffer.render_data;
+    EditorBufferRenderData* render_data = &state->first_panel.buffer_render_data;
 
     draw_editor_buffer(render_data, layout.content_region);
     draw_panel_titlebar(&state->first_panel.buffer_name_render_data,

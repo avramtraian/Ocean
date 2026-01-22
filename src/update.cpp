@@ -10,6 +10,9 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
     if (panel == NULL)
         return;
 
+    EditorBufferView* buffer_view = panel->buffer_view;
+    EditorBuffer* buffer = buffer_view->buffer;
+
     // @Incomplete: This should be done via a key shortcut in order to allow configurability by the
     // user. However, the current implementation of the command system doesn't allow a command to
     // change the state of the console... (18th January 2026)
@@ -18,30 +21,28 @@ update_editor_panel(EditorState* state, FrameInput* frame_input)
     {
         ASSERT(state->console_state == ConsoleState::SHOW_MESSAGE);
         state->console_state = ConsoleState::INSERT_COMMAND_NAME;
-        clear_buffer(&state->console_buffer);
+        clear_buffer(&state->console_buffer_view);
     }
 
     // @Cleanup!
     u32 view_column_count = 0;
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
-    if (panel->wrap_content_lines) {
+    if (buffer_view->wrap_lines) {
         view_column_count = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
     }
     if (view_column_count == 0)
         view_column_count = MAX_WRAP_COLUMN_COUNT; // This effecively disables any line wrapping.
 
     NavigationSystem navigation = {};
-    navigation.buffer = &panel->content_buffer;
+    navigation.buffer_view = buffer_view;
     navigation.view_column_count = view_column_count;
     navigation.font = font_from_id(FontID::TEXT_REGULAR);
     navigation.tab_size = TAB_SIZE;
-    navigation.view_line_index   = &panel->content_view_line_index;
-    navigation.view_column_index = &panel->content_view_column_index;
     navigation.allow_mouse_cursor = true;
     navigation.buffer_region = layout.content_region;
 
     InsertionSystem insertion = {};
-    insertion.buffer = &panel->content_buffer;
+    insertion.buffer_view = buffer_view;
     insertion.view_column_count = view_column_count;
     insertion.font = font_from_id(FontID::TEXT_REGULAR);
     insertion.tab_size = TAB_SIZE;
@@ -55,13 +56,13 @@ internal void
 update_editor_console(EditorState* state, FrameInput* frame_input)
 {
     NavigationSystem navigation = {};
-    navigation.buffer = &state->console_buffer;
+    navigation.buffer_view = &state->console_buffer_view;
     navigation.view_column_count = MAX_WRAP_COLUMN_COUNT;
     navigation.font = font_from_id(FontID::TEXT_REGULAR);
     navigation.tab_size = TAB_SIZE;
 
     InsertionSystem insertion = {};
-    insertion.buffer = &state->console_buffer;
+    insertion.buffer_view = &state->console_buffer_view;
     insertion.view_column_count = MAX_WRAP_COLUMN_COUNT;
     insertion.font = font_from_id(FontID::TEXT_REGULAR);
     insertion.tab_size = TAB_SIZE;

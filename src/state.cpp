@@ -174,25 +174,37 @@ struct CursorPosition {
 };
 
 struct EditorBuffer {
-    u8*                    data;
-    usize                  size;
-    usize                  committed;
-    usize                  reserved;
-    EditorCursor*          cursors;
-    u32                    cursor_count;
-    u32                    cursor_allocated_count;
-    EditorBufferRenderData render_data;
+    EditorBuffer* next;
+    EditorBuffer* prev;
+
+    u8* data;
+    usize size;
+    usize committed;
+    usize reserved;
+
+    String name;
+    bool is_backed_by_file;
+    String backing_file_name;
+};
+
+struct EditorBufferView {
+    EditorBufferView* next;
+    EditorBufferView* prev;
+
+    EditorBuffer* buffer;
+    EditorCursor* cursors;
+    u32 cursor_count;
+    u32 cursor_allocated_count;
+    u32 view_line_index;
+    u32 view_column_index;
+    bool wrap_lines;
 };
 
 struct EditorPanel {
-    EditorBuffer   content_buffer;
-    u32            content_view_column_index;
-    u32            content_view_line_index;
-    bool           wrap_content_lines;
-
-    String buffer_name;
-    LineRenderData buffer_name_render_data;
-    LineRenderData cursor_info_render_data;
+    EditorBufferView*      buffer_view;
+    EditorBufferRenderData buffer_render_data;
+    LineRenderData         buffer_name_render_data;
+    LineRenderData         cursor_info_render_data;
 };
 
 enum class ConsoleState {
@@ -206,12 +218,19 @@ struct EditorState {
     EditorPanel  second_panel;
     EditorPanel* active_panel;
 
+    EditorBuffer* first_buffer;
+    EditorBuffer* last_buffer;
+
+    EditorBufferView* first_buffer_view;
+    EditorBufferView* last_buffer_view;
+
     EditorCommandTable command_table;
 
-    ConsoleState   console_state;
-    EditorCommand* active_command;
-    String         console_message;
-    EditorBuffer   console_buffer;
+    ConsoleState     console_state;
+    EditorCommand*   active_command;
+    String           console_message;
+    EditorBuffer     console_buffer;
+    EditorBufferView console_buffer_view;
     
     LineRenderData console_render_data;
 };
@@ -336,12 +355,12 @@ get_panel_layout(LayoutType type, bool allow_line_wrapping, bool scrollbar_is_vi
 }
 
 internal Vector2u
-get_content_view_cell_count(EditorState* state, EditorPanel* panel)
+get_content_view_cell_count(EditorState* state, EditorBufferView* buffer_view)
 {
     EditorPanelLayout layout = get_panel_layout(LayoutType::SINGLE, true, false); // @Incomplete!
 
     Vector2u result = {};
-    if (panel->wrap_content_lines)
+    if (buffer_view->wrap_lines)
         result.x = rect_size_x(layout.content_region) / font_from_id(FontID::TEXT_REGULAR)->glyph_cell_size.x;
     if (result.x == 0)
         result.x = MAX_WRAP_COLUMN_COUNT; // This effecively disables any line wrapping.
