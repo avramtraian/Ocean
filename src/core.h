@@ -100,6 +100,10 @@ typedef u64 uintptr;
 
 #define ASSERT(X)
 #define PANIC(...)
+#if PLATFORM_COMPILER_MSVC
+    #define FORCEINLINE __forceinline
+    #define DEBUGBREAK  __debugbreak()
+#endif // PLATFORM_COMPILER_MSVC
 
 internal void MemoryCopy(void* Destination, void* Source, usize Size);
 internal void MemorySet (void* Destination, u8 ByteValue, usize Size);
@@ -113,6 +117,12 @@ internal void MemoryZero(void* Destination, usize Size);
 
 #define ZERO_STRUCT(X)      MemoryZero(X, sizeof(*(X)))
 #define ZERO_ARRAY(X, C)    MemoryZero(X, (C) * sizeof((X)[0]))
+
+struct memory_buffer
+{
+    u8*   Data;
+    usize Size;
+};
 
 struct arena
 {

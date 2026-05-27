@@ -5,8 +5,8 @@
 #define OS_H
 
 #include "core.h"
-#include "graphics.h"
 #include "math.h"
+#include "render.h"
 
 //==============================================================================
 // GENERAL-PURPOSE OS LAYER.

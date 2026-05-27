@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: BSD-3-Clause.
 
 #include "core.h"
-#include "graphics.h"
 #include "math_utils.h"
 #include "os.h"
+#include "render.h"
 
 #include "core.cpp"
-#include "graphics.cpp"
 #include "os_windows.cpp"
+#include "render.cpp"
 
 struct editor_state
 {
