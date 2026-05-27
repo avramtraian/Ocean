@@ -16,6 +16,9 @@
 INT WINAPI
 WinMain(HINSTANCE Instance, HINSTANCE PrevInstance, LPSTR CommandLine, INT ShowCommand)
 {
+    // Why on earth isn't this the default value? -- avrtraian 27 May 2026
+    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+
     int Argc = __argc;
     char** Argv = __argv;
 
