@@ -3,7 +3,7 @@
 
 #include "core.h"
 #include "graphics.h"
-#include "math.h"
+#include "math_utils.h"
 #include "os.h"
 
 #include "core.cpp"
