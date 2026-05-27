@@ -44,7 +44,7 @@ OSEntryPoint(string8* Arguments, u32 ArgumentCount)
         }
         if (Event.Type == OSEventType_WindowClosed)
         {
-            ASSERT(Event->Window == Window);
+            ASSERT(Event.Window == Window);
             // Destroying the window causes the window manager to post an application-closed
             // event, which in turn causes the event loop to terminate.
             OSDestroyWindow(WindowManager, &Window);

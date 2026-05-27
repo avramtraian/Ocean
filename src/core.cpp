@@ -2,6 +2,15 @@
 // SPDX-License-Identifier: BSD-3-Clause.
 
 internal void
+HandleAssertionFailed()
+{
+    // @Incomplete: Print information about the source code location of where
+    // the assert was triggered. We should also extract and print the
+    // program stack trace... -- avrtraian 27 May 2026
+    DEBUGBREAK;
+}
+
+internal void
 MemoryCopy(void* Destination, void* Source, usize Size)
 {
     // @Performance: Replace this naive implementation with intrinsics!

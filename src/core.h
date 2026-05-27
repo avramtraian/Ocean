@@ -98,12 +98,24 @@ typedef u64 uintptr;
 #define MiB(X) ((u64)1024 * KiB(X))
 #define GiB(X) ((u64)1024 * MiB(X))
 
-#define ASSERT(X)
-#define PANIC(...)
 #if PLATFORM_COMPILER_MSVC
     #define FORCEINLINE __forceinline
     #define DEBUGBREAK  __debugbreak()
 #endif // PLATFORM_COMPILER_MSVC
+
+[[noreturn]] internal void HandleAssertionFailed();
+#define ASSERT(X)                   \
+    if (!(X))                       \
+    {                               \
+        DEBUGBREAK;                 \
+        HandleAssertionFailed();    \
+    }
+
+#define PANIC(...)                  \
+    {                               \
+        DEBUGBREAK;                 \
+        HandleAssertionFailed();    \
+    }
 
 internal void MemoryCopy(void* Destination, void* Source, usize Size);
 internal void MemorySet (void* Destination, u8 ByteValue, usize Size);
